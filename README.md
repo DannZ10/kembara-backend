@@ -1,58 +1,120 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🏕️ GearNest API — Outdoor Rental Management System (Backend)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+[![Laravel](https://img.shields.io/badge/Laravel-11.x-FF2D20?style=for-the-badge&logo=laravel)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=for-the-badge&logo=php)](https://php.net)
+[![Sanctum](https://img.shields.io/badge/Auth-Sanctum-red?style=for-the-badge)](https://laravel.com/docs/sanctum)
+[![Midtrans](https://img.shields.io/badge/Payment-Midtrans_Snap-blue?style=for-the-badge)](https://midtrans.com)
+[![Tests](https://img.shields.io/badge/Tests-19%2F19_Passed-brightgreen?style=for-the-badge)](https://phpunit.de)
 
-## About Laravel
+**GearNest API** adalah sistem RESTful API backend untuk platform persewaan alat outdoor & peralatan gunung. Dibangun menggunakan **Laravel 11**, arsitektur **Hybrid UUID + ID**, **Pessimistic Stock Locking**, dan integrasi payment gateway **Midtrans Snap**.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 🌟 Fitur Utama Backend
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- 🔐 **Otentikasi & Profil (`Sanctum`)**: Register, Login, Profile, Logout, dan Role-Based Access Control (`admin` / `customer`).
+- ⛺ **Katalog & Filter Gear**: Pencarian kata kunci, filter kategori (`slug`), filter rentang harga, pengurutan, dan paginasi.
+- 📦 **Booking Engine Transaksional**:
+  - **Pessimistic Locking (`lockForUpdate()`)** untuk menjamin stok tidak minus saat pemesanan berbarengan.
+  - Perhitungan biaya antar dinamis via `DeliveryFeeService` (Pickup Rp 0, Delivery Rp 10.000 + Rp 3.000/km).
+  - Penjanaan kode booking unik (`GN-YYYYMMDD-NNN`).
+  - Isolasi data transaksi antar pengguna (*Customer Data Isolation*).
+- 💳 **Midtrans Snap Payment Integration**:
+  - Generate Snap Token & Snap Redirect URL otomatis.
+  - Webhook Callback Handler dengan verifikasi SHA512 signature.
+  - Penanganan otomatis status `PAID` ➔ Booking `CONFIRMED`.
+  - Penanganan otomatis status `EXPIRED`/`CANCELLED` ➔ Pembatalan booking & **Pengembalian Stok Gear Otomatis**.
+- 📊 **Laporan & Analytics Admin**: Dashboard summary (omset, total booking, sewa aktif, alert stok menipis ≤ 3 unit, dan ranking gear terpopuler).
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## 🗄️ Arsitektur Database (Hybrid UUID + ID)
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| Tabel | Primary Key | Role / Keamanan |
+|---|---|---|
+| `users` | `UUID` | Privasi user & keamanan token |
+| `bookings` | `UUID` | Transaksi utama, mencegah IDOR |
+| `payments` | `UUID` | Integrasi aman finansial Midtrans |
+| `gears` | `BIGINT` | Performa join katalog & pencarian fast B-Tree, publik via `slug` |
+| `gear_categories` | `BIGINT` | Referensi 14 kategori, publik via `slug` |
+| `booking_items` | `BIGINT` | Tabel pivot/rincian item sewa |
+| `personal_access_tokens` | `BIGINT` | Sanctum API Token Manager |
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+---
 
-## Agentic Development
+## 🚀 Panduan Instalasi & Menjalankan Lokal
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Prerequisites
+- PHP >= 8.2
+- Composer >= 2.5
+- Extension PHP: `pdo_sqlite` / `pdo_mysql`, `mbstring`, `openssl`
 
+### 1. Clone & Install Dependencies
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone https://github.com/DannZ10/gearnest-backend.git gearnest-api
+cd gearnest-api
+composer install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. Konfigurasi Environment File
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-## Contributing
+### 3. Eksekusi Migrasi & Seeder Database
+```bash
+php artisan migrate:fresh --seed
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 4. Jalankan Server API & Dokumentasi
+```bash
+php artisan serve
+```
+- **API Base URL**: `http://localhost:8000/api`
+- **Interactive API Documentation (Scramble)**: `http://localhost:8000/docs/api`
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## 🧪 Pengujian Otomatis (Automated Unit & Feature Tests)
 
-## Security Vulnerabilities
+```bash
+php artisan test
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```text
+PASS  Tests\Feature\Api\AuthTest
+✓ user can register
+✓ user can login and receive token
+✓ user can fetch profile
+✓ user can logout
 
-## License
+PASS  Tests\Feature\Api\GearTest
+✓ anyone can list gears with search and filter
+✓ anyone can view gear detail by slug
+✓ admin can create gear
+✓ admin can update gear
+✓ admin can delete gear
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+PASS  Tests\Feature\Api\BookingTest
+✓ customer can create pickup booking
+✓ booking fails when stock insufficient
+✓ customer cannot view other customers booking
+✓ cancelling booking restores stock
+
+PASS  Tests\Feature\Api\PaymentAndReportTest
+✓ can create payment snap url for booking
+✓ webhook settlement marks payment paid and booking confirmed
+✓ webhook expire restores gear stock
+✓ admin can view reports
+
+Tests:    19 passed (70 assertions)
+Duration: 1.62s
+```
+
+---
+
+## 🔑 Kredensial Demo Cepat
+
+- **Admin Account**: `admin@gearnest.com` / `admin123`
+- **Customer Account**: `customer@gearnest.com` / `customer123`
