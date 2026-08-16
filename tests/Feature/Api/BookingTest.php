@@ -137,4 +137,54 @@ class BookingTest extends TestCase
         // Stock restored!
         $this->assertEquals($initialStock, $gear->fresh()->stock_available);
     }
+
+    public function test_admin_can_toggle_identity_verification_both_ways(): void
+    {
+        $customer = User::where('role', UserRole::CUSTOMER)->first();
+        $admin = User::where('role', UserRole::ADMIN)->first();
+        $gear = Gear::first();
+
+        // Customer creates a booking (identity unverified by default)
+        Sanctum::actingAs($customer);
+        $createRes = $this->postJson('/api/bookings', [
+            'start_date' => now()->addDay()->format('Y-m-d'),
+            'end_date' => now()->addDays(2)->format('Y-m-d'),
+            'delivery_type' => 'pickup',
+            'items' => [
+                ['gear_id' => $gear->id, 'quantity' => 1],
+            ],
+        ]);
+
+        $bookingId = $createRes->json('data.id');
+        $this->assertDatabaseHas('bookings', [
+            'id' => $bookingId,
+            'identity_verified' => false,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        // Verify identity
+        $verifyRes = $this->patchJson("/api/admin/bookings/{$bookingId}/verify", [
+            'verified' => true,
+        ]);
+        $verifyRes->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.identity_verified', true);
+        $this->assertDatabaseHas('bookings', [
+            'id' => $bookingId,
+            'identity_verified' => true,
+        ]);
+
+        // Un-verify identity (regression: this must actually set it back to false)
+        $unverifyRes = $this->patchJson("/api/admin/bookings/{$bookingId}/verify", [
+            'verified' => false,
+        ]);
+        $unverifyRes->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.identity_verified', false);
+        $this->assertDatabaseHas('bookings', [
+            'id' => $bookingId,
+            'identity_verified' => false,
+        ]);
+    }
 }

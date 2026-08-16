@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -51,15 +50,5 @@ class Gear extends Model
     public function bookingItems(): HasMany
     {
         return $this->hasMany(BookingItem::class);
-    }
-
-    public function scopeAvailable(Builder $query): Builder
-    {
-        return $query->where('is_available', true);
-    }
-
-    public function scopeByCategory(Builder $query, int $categoryId): Builder
-    {
-        return $query->where('category_id', $categoryId);
     }
 }

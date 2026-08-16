@@ -15,8 +15,8 @@ class PaymentService
     public function __construct(
         protected BookingService $bookingService
     ) {
-        Config::$serverKey = config('services.midtrans.server_key', env('MIDTRANS_SERVER_KEY', 'SB-Mid-server-TESTKEY'));
-        Config::$isProduction = config('services.midtrans.is_production', false);
+        Config::$serverKey = config('services.midtrans.server_key');
+        Config::$isProduction = (bool) config('services.midtrans.is_production');
         Config::$isSanitized = true;
         Config::$is3ds = true;
     }

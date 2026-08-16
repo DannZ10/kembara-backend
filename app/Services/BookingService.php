@@ -93,6 +93,8 @@ class BookingService
             $query->where('status', $filters['status']);
         }
 
+        $this->applyDateRange($query, $filters);
+
         return $query->orderBy('created_at', 'desc')->paginate($perPage);
     }
 
@@ -123,6 +125,8 @@ class BookingService
             });
         }
 
+        $this->applyDateRange($query, $filters);
+
         return $query->orderBy('created_at', 'desc')->paginate($perPage);
     }
 
@@ -147,10 +151,23 @@ class BookingService
         });
     }
 
-    public function verifyIdentity(Booking $booking): Booking
+    public function verifyIdentity(Booking $booking, bool $verified = true): Booking
     {
-        $booking->update(['identity_verified' => true]);
+        $booking->update(['identity_verified' => $verified]);
 
         return $booking->fresh();
+    }
+
+    /**
+     * Filter a booking query by created_at date range (date_from / date_to).
+     */
+    private function applyDateRange($query, array $filters): void
+    {
+        if (! empty($filters['date_from'])) {
+            $query->whereDate('created_at', '>=', $filters['date_from']);
+        }
+        if (! empty($filters['date_to'])) {
+            $query->whereDate('created_at', '<=', $filters['date_to']);
+        }
     }
 }

@@ -90,14 +90,17 @@ class BookingController extends Controller
         ]);
     }
 
-    public function verifyIdentity(string $id): JsonResponse
+    public function verifyIdentity(Request $request, string $id): JsonResponse
     {
         $booking = Booking::findOrFail($id);
-        $verified = $this->bookingService->verifyIdentity($booking);
+        $isVerified = $request->boolean('verified', true);
+        $verified = $this->bookingService->verifyIdentity($booking, $isVerified);
 
         return response()->json([
             'success' => true,
-            'message' => 'Verifikasi jaminan identitas berhasil',
+            'message' => $isVerified
+                ? 'Verifikasi jaminan identitas berhasil'
+                : 'Verifikasi jaminan identitas dibatalkan',
             'data' => $verified,
         ]);
     }
