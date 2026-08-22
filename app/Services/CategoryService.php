@@ -3,28 +3,36 @@
 namespace App\Services;
 
 use App\Models\GearCategory;
-use Illuminate\Database\Eloquent\Collection;
+use App\Support\Cache\CacheHelper;
 
 class CategoryService
 {
-    public function getAllCategories(): Collection
+    private const TTL = 600;
+
+    // Cached reads return arrays (see GearService note on serializable_classes).
+    public function getAllCategories(): array
     {
-        return GearCategory::withCount('gears')->get();
+        return CacheHelper::remember(CacheHelper::CATALOG, 'categories:all', self::TTL, fn () => GearCategory::withCount('gears')->get()->toArray());
     }
 
-    public function getCategoryById(int $id): GearCategory
+    public function getCategoryById(int $id): array
     {
-        return GearCategory::with('gears')->findOrFail($id);
+        return CacheHelper::remember(CacheHelper::CATALOG, "categories:{$id}", self::TTL, fn () => GearCategory::with('gears')->findOrFail($id)->toArray());
     }
 
     public function createCategory(array $data): GearCategory
     {
-        return GearCategory::create($data);
+        $category = GearCategory::create($data);
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
+        return $category;
     }
 
     public function updateCategory(GearCategory $category, array $data): GearCategory
     {
         $category->update($data);
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
         return $category->fresh();
     }
 
@@ -34,6 +42,9 @@ class CategoryService
             throw new \Exception('Kategori tidak dapat dihapus karena masih memiliki item gear.');
         }
 
-        return $category->delete();
+        $deleted = $category->delete();
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
+        return $deleted;
     }
 }

@@ -72,8 +72,9 @@ Route::get('/', function () {
 | Public Routes (Katalog, Categories, & Payment Webhook)
 |--------------------------------------------------------------------------
 */
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+// Throttle auth endpoints to blunt credential brute-forcing (10 req/min per IP).
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
 Route::get('/gears', [GearController::class, 'index']);
 Route::get('/gears/{id}', [GearController::class, 'show'])->whereNumber('id');

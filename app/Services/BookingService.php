@@ -6,6 +6,7 @@ use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\Gear;
 use App\Models\User;
+use App\Support\Cache\CacheHelper;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -17,7 +18,7 @@ class BookingService
 
     public function createBooking(User $user, array $data): Booking
     {
-        return DB::transaction(function () use ($user, $data) {
+        $booking = DB::transaction(function () use ($user, $data) {
             $startDate = new \DateTime($data['start_date']);
             $endDate = new \DateTime($data['end_date']);
             $diffDays = $startDate->diff($endDate)->days;
@@ -82,6 +83,11 @@ class BookingService
 
             return $booking->load(['items.gear', 'user']);
         });
+
+        // Stock deducted + revenue/low-stock aggregates changed.
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
+        return $booking;
     }
 
     public function getUserBookings(User $user, array $filters = [], int $perPage = 10): LengthAwarePaginator
@@ -134,7 +140,7 @@ class BookingService
     {
         $targetStatus = $newStatus instanceof BookingStatus ? $newStatus : BookingStatus::from($newStatus);
 
-        return DB::transaction(function () use ($booking, $targetStatus) {
+        $updated = DB::transaction(function () use ($booking, $targetStatus) {
             $oldStatus = $booking->status;
 
             if (($targetStatus === BookingStatus::CANCELLED || $targetStatus === BookingStatus::RETURNED)
@@ -149,6 +155,11 @@ class BookingService
 
             return $booking->fresh(['items.gear', 'user', 'payment']);
         });
+
+        // Status transition may restore stock and shifts revenue/status aggregates.
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
+        return $updated;
     }
 
     public function verifyIdentity(Booking $booking, bool $verified = true): Booking

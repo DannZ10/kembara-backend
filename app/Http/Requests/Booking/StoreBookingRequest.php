@@ -20,9 +20,9 @@ class StoreBookingRequest extends FormRequest
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after:start_date',
             'delivery_type' => 'required|in:pickup,delivery',
-            'delivery_address' => 'required_if:delivery_type,delivery|nullable|string',
+            'delivery_address' => 'required_if:delivery_type,delivery|nullable|string|max:500',
             'delivery_distance_km' => 'required_if:delivery_type,delivery|nullable|numeric|min:0.1|max:30',
-            'notes' => 'nullable|string',
+            'notes' => 'nullable|string|max:1000',
         ];
     }
 

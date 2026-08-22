@@ -12,6 +12,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "midtrans/midtrans-php": "^2.6",
+        "predis/predis": "^3.6",
         "spatie/laravel-sluggable": "^4.0"
     },
     "require-dev": {

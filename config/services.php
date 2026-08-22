@@ -36,9 +36,12 @@ return [
     ],
 
     'midtrans' => [
+        'merchant_id' => env('MIDTRANS_MERCHANT_ID'),
         'server_key' => env('MIDTRANS_SERVER_KEY', 'SB-Mid-server-TESTKEY'),
         'client_key' => env('MIDTRANS_CLIENT_KEY', 'SB-Mid-client-TESTKEY'),
         'is_production' => env('MIDTRANS_IS_PRODUCTION', false),
+        // Where Snap sends the customer back after finishing payment.
+        'finish_url' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/').'/account',
     ],
 
 ];

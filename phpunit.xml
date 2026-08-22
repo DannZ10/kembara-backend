@@ -27,6 +27,11 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <!-- Placeholder keys keep the suite offline: PaymentService skips the
+             real Midtrans call and webhook signature check in this mode. -->
+        <env name="MIDTRANS_SERVER_KEY" value="SB-Mid-server-TESTKEY"/>
+        <env name="MIDTRANS_CLIENT_KEY" value="SB-Mid-client-TESTKEY"/>
+        <env name="MIDTRANS_IS_PRODUCTION" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

@@ -6,7 +6,7 @@ use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\BookingItem;
 use App\Models\Gear;
-use Illuminate\Support\Collection;
+use App\Support\Cache\CacheHelper;
 use Illuminate\Support\Facades\DB;
 
 class ReportService
@@ -20,53 +20,61 @@ class ReportService
         BookingStatus::RETURNED,
     ];
 
-    public function getPopularGears(int $limit = 5): Collection
+    /** Reports are aggregation-heavy; cache briefly, invalidate on writes. */
+    private const TTL = 120;
+
+    // Cached reads return arrays (see GearService note on serializable_classes).
+    public function getPopularGears(int $limit = 5): array
     {
-        return BookingItem::select('gear_id', DB::raw('SUM(quantity) as total_rented'), DB::raw('SUM(line_total) as total_revenue'))
+        return CacheHelper::remember(CacheHelper::REPORTS, "popular-gear:{$limit}", self::TTL, fn () => BookingItem::select('gear_id', DB::raw('SUM(quantity) as total_rented'), DB::raw('SUM(line_total) as total_revenue'))
             ->with('gear.category')
             ->groupBy('gear_id')
             ->orderByDesc('total_rented')
             ->limit($limit)
-            ->get();
+            ->get()
+            ->toArray());
     }
 
     /**
      * Revenue grouped by period. Driver-aware so it works on both MySQL
      * (DATE_FORMAT) and SQLite (strftime, used by the test suite).
      */
-    public function getRevenueReport(string $groupBy = 'daily', ?string $from = null, ?string $to = null): Collection
+    public function getRevenueReport(string $groupBy = 'daily', ?string $from = null, ?string $to = null): array
     {
-        $format = $groupBy === 'monthly' ? '%Y-%m' : '%Y-%m-%d';
-        $periodExpr = $this->periodExpression('created_at', $format);
+        return CacheHelper::remember(CacheHelper::REPORTS, "revenue:{$groupBy}:{$from}:{$to}", self::TTL, function () use ($groupBy, $from, $to) {
+            $format = $groupBy === 'monthly' ? '%Y-%m' : '%Y-%m-%d';
+            $periodExpr = $this->periodExpression('created_at', $format);
 
-        $query = Booking::whereIn('status', self::REVENUE_STATUSES)
-            ->select(
-                DB::raw("{$periodExpr} as period"),
-                DB::raw('COUNT(id) as total_bookings'),
-                DB::raw('SUM(total_price) as total_revenue'),
-                DB::raw('SUM(delivery_fee) as total_delivery_fee')
-            );
+            $query = Booking::whereIn('status', self::REVENUE_STATUSES)
+                ->select(
+                    DB::raw("{$periodExpr} as period"),
+                    DB::raw('COUNT(id) as total_bookings'),
+                    DB::raw('SUM(total_price) as total_revenue'),
+                    DB::raw('SUM(delivery_fee) as total_delivery_fee')
+                );
 
-        $this->applyDateRange($query, 'created_at', $from, $to);
+            $this->applyDateRange($query, 'created_at', $from, $to);
 
-        return $query->groupBy('period')->orderBy('period', 'asc')->get();
+            return $query->groupBy('period')->orderBy('period', 'asc')->get()->toArray();
+        });
     }
 
-    public function getLowStockGears(int $threshold = 3): Collection
+    public function getLowStockGears(int $threshold = 3): array
     {
-        return Gear::with('category')
+        return CacheHelper::remember(CacheHelper::REPORTS, "low-stock:{$threshold}", self::TTL, fn () => Gear::with('category')
             ->where('stock_available', '<=', $threshold)
             ->orderBy('stock_available', 'asc')
-            ->get();
+            ->get()
+            ->toArray());
     }
 
     /**
      * Busiest rental dates ("jadwal paling ramai") — how many bookings start
      * on each date, most crowded first.
      */
-    public function getBusiestPeriods(int $limit = 7): Collection
+    public function getBusiestPeriods(int $limit = 7): array
     {
-        return Booking::select(
+        return CacheHelper::remember(CacheHelper::REPORTS, "busiest:{$limit}", self::TTL, fn () => Booking::select(
             'start_date',
             DB::raw('COUNT(id) as total_bookings'),
             DB::raw('SUM(duration_days) as total_rental_days')
@@ -75,29 +83,31 @@ class ReportService
             ->orderByDesc('total_bookings')
             ->orderBy('start_date', 'asc')
             ->limit($limit)
-            ->get();
+            ->get()
+            ->toArray());
     }
 
     /**
      * Booking count + revenue per status — chart-ready (pie/bar).
      */
-    public function getStatusBreakdown(): Collection
+    public function getStatusBreakdown(): array
     {
-        return Booking::select(
+        return CacheHelper::remember(CacheHelper::REPORTS, 'status-breakdown', self::TTL, fn () => Booking::select(
             'status',
             DB::raw('COUNT(id) as total'),
             DB::raw('SUM(total_price) as total_value')
         )
             ->groupBy('status')
-            ->get();
+            ->get()
+            ->toArray());
     }
 
     /**
      * Revenue + units rented per category — chart-ready (bar).
      */
-    public function getCategoryPerformance(): Collection
+    public function getCategoryPerformance(): array
     {
-        return BookingItem::query()
+        return CacheHelper::remember(CacheHelper::REPORTS, 'category-performance', self::TTL, fn () => BookingItem::query()
             ->join('gears', 'gears.id', '=', 'booking_items.gear_id')
             ->join('gear_categories', 'gear_categories.id', '=', 'gears.category_id')
             ->select(
@@ -108,20 +118,19 @@ class ReportService
             )
             ->groupBy('gear_categories.id', 'gear_categories.name')
             ->orderByDesc('total_revenue')
-            ->get();
+            ->get()
+            ->toArray());
     }
 
     public function getDashboardSummary(): array
     {
-        $totalRevenue = Booking::whereIn('status', self::REVENUE_STATUSES)->sum('total_price');
-
-        return [
+        return CacheHelper::remember(CacheHelper::REPORTS, 'dashboard-summary', self::TTL, fn () => [
             'total_gears' => Gear::count(),
             'total_bookings' => Booking::count(),
-            'total_revenue' => (float) $totalRevenue,
+            'total_revenue' => (float) Booking::whereIn('status', self::REVENUE_STATUSES)->sum('total_price'),
             'pending_bookings' => Booking::where('status', BookingStatus::PENDING)->count(),
             'active_rentals' => Booking::where('status', BookingStatus::ACTIVE)->count(),
-        ];
+        ]);
     }
 
     /**

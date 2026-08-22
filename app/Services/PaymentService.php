@@ -28,6 +28,8 @@ class PaymentService
             return $booking->payment;
         }
 
+        $booking->loadMissing(['items.gear', 'user']);
+
         $orderId = $booking->booking_code.'-'.time();
         $grossAmount = (int) round($booking->total_price);
 
@@ -46,19 +48,24 @@ class PaymentService
                 'unit' => 'hour',
                 'duration' => 24,
             ],
+            'callbacks' => [
+                'finish' => config('services.midtrans.finish_url'),
+            ],
         ];
 
-        $snapUrl = 'https://app.sandbox.midtrans.com/snap/v2/vtweb/'.$orderId;
-
-        // Try getting Snap URL from Midtrans SDK if keys are valid
-        try {
-            if (Config::$serverKey !== 'SB-Mid-server-TESTKEY') {
-                $snapUrl = Snap::getRedirectUrl($params);
-            }
-        } catch (\Exception $e) {
-            // Fallback for dev/testing environment
-            $snapUrl = 'https://app.sandbox.midtrans.com/snap/v2/vtweb/'.$orderId;
+        // Show the rented gear on the Snap page. Midtrans recomputes
+        // gross_amount from item_details, so only attach them when the sum
+        // matches the booking total exactly.
+        $items = $this->buildItemDetails($booking);
+        if ($items !== null) {
+            $params['item_details'] = $items;
         }
+
+        // With real credentials, call Midtrans. Failures propagate to the
+        // controller as a 422 instead of silently returning an unusable URL.
+        $snapUrl = $this->hasCredentials()
+            ? Snap::getSnapUrl($params)
+            : 'https://app.sandbox.midtrans.com/snap/v2/vtweb/'.$orderId;
 
         return Payment::updateOrCreate(
             ['booking_id' => $booking->id],
@@ -73,6 +80,51 @@ class PaymentService
         );
     }
 
+    /**
+     * Real Midtrans credentials configured? The shipped placeholder means
+     * "offline mode" for local dev and the test suite.
+     */
+    private function hasCredentials(): bool
+    {
+        $key = (string) Config::$serverKey;
+
+        return $key !== '' && ! str_contains($key, 'TESTKEY');
+    }
+
+    /**
+     * Snap line items for the booking, or null when the computed sum does not
+     * match the stored total (never let Midtrans charge a different amount).
+     *
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function buildItemDetails(Booking $booking): ?array
+    {
+        $items = [];
+
+        foreach ($booking->items as $item) {
+            $items[] = [
+                'id' => (string) $item->gear_id,
+                'name' => mb_substr($item->gear?->name ?? 'Gear', 0, 50),
+                'price' => (int) round($item->price_per_day * $booking->duration_days),
+                'quantity' => (int) $item->quantity,
+            ];
+        }
+
+        $deliveryFee = (int) round($booking->delivery_fee);
+        if ($deliveryFee > 0) {
+            $items[] = [
+                'id' => 'DELIVERY',
+                'name' => 'Biaya Pengiriman',
+                'price' => $deliveryFee,
+                'quantity' => 1,
+            ];
+        }
+
+        $sum = array_sum(array_map(fn ($i) => $i['price'] * $i['quantity'], $items));
+
+        return $sum === (int) round($booking->total_price) ? $items : null;
+    }
+
     public function handleNotification(array $payload): Payment
     {
         $orderId = $payload['order_id'] ?? null;
@@ -85,11 +137,16 @@ class PaymentService
             throw new \Exception('Invalid notification payload: Missing order_id');
         }
 
-        // Verify SHA512 signature if server_key is set
-        $serverKey = Config::$serverKey;
-        if ($serverKey && $serverKey !== 'SB-Mid-server-TESTKEY' && $signatureKey) {
-            $expectedSignature = hash('sha512', $orderId.$statusCode.$grossAmount.$serverKey);
-            if ($signatureKey !== $expectedSignature) {
+        // With real credentials the SHA512 signature is mandatory: a missing
+        // signature must be rejected, otherwise anyone could POST this webhook
+        // and mark a booking as paid.
+        if ($this->hasCredentials()) {
+            if (! $signatureKey) {
+                throw new \Exception('Missing Midtrans notification signature');
+            }
+
+            $expectedSignature = hash('sha512', $orderId.$statusCode.$grossAmount.Config::$serverKey);
+            if (! hash_equals($expectedSignature, $signatureKey)) {
                 throw new \Exception('Invalid Midtrans notification signature');
             }
         }

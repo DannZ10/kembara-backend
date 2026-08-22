@@ -54,6 +54,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Idle Timeout Minutes
+    |--------------------------------------------------------------------------
+    |
+    | Sliding inactivity window. If a token is not used for this many minutes,
+    | the next request with it is rejected (401) and the token is pruned, so
+    | idle admins/customers are logged out automatically. Enforced in
+    | AppServiceProvider via Sanctum::authenticateAccessTokensUsing().
+    |
+    */
+
+    'idle_timeout' => (int) env('SANCTUM_IDLE_TIMEOUT', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |

@@ -3,20 +3,25 @@
 namespace App\Services;
 
 use App\Models\Gear;
+use App\Support\Cache\CacheHelper;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class GearService
 {
+    private const TTL = 300;
+
     public function getPaginatedGears(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
         $query = Gear::with('category');
 
-        // Public vs Admin availability filtering
-        if (isset($filters['is_available'])) {
-            $query->where('is_available', filter_var($filters['is_available'], FILTER_VALIDATE_BOOLEAN));
-        } else {
-            // Default public only sees available gears
+        // Public vs Admin availability filtering.
+        // is_available omitted  -> public: only available gears.
+        // is_available=all      -> admin: every gear regardless of availability.
+        // is_available=true/false -> explicit filter.
+        if (! isset($filters['is_available'])) {
             $query->where('is_available', true);
+        } elseif ($filters['is_available'] !== 'all') {
+            $query->where('is_available', filter_var($filters['is_available'], FILTER_VALIDATE_BOOLEAN));
         }
 
         // Search by keyword (name, description, brand)
@@ -66,14 +71,18 @@ class GearService
         return $query->paginate($perPage);
     }
 
-    public function getGearById(int $id): Gear
+    // Cached reads return arrays, not Eloquent objects: Laravel's default
+    // cache.serializable_classes=false blocks unserializing classes, so only
+    // primitives round-trip safely across file/redis stores. JSON output is
+    // identical to encoding the model.
+    public function getGearById(int $id): array
     {
-        return Gear::with('category')->findOrFail($id);
+        return CacheHelper::remember(CacheHelper::CATALOG, "gears:{$id}", self::TTL, fn () => Gear::with('category')->findOrFail($id)->toArray());
     }
 
-    public function getGearBySlug(string $slug): Gear
+    public function getGearBySlug(string $slug): array
     {
-        return Gear::with('category')->where('slug', $slug)->firstOrFail();
+        return CacheHelper::remember(CacheHelper::CATALOG, "gears:slug:{$slug}", self::TTL, fn () => Gear::with('category')->where('slug', $slug)->firstOrFail()->toArray());
     }
 
     public function createGear(array $data): Gear
@@ -83,18 +92,25 @@ class GearService
             $data['stock_available'] = $data['stock_total'];
         }
 
-        return Gear::create($data);
+        $gear = Gear::create($data);
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
+        return $gear;
     }
 
     public function updateGear(Gear $gear, array $data): Gear
     {
         $gear->update($data);
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
         return $gear->fresh('category');
     }
 
     public function deactivateGear(Gear $gear): Gear
     {
         $gear->update(['is_available' => false]);
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
         return $gear->fresh();
     }
 }
