@@ -45,9 +45,10 @@ Route::get('/', function () {
                 'GET    /api/bookings/{id}/payment     (auth)',
             ],
             'admin' => [
-                'POST   /api/admin/gears                     (admin)',
-                'PUT    /api/admin/gears/{id}                (admin)',
-                'DELETE /api/admin/gears/{id}                (admin)',
+                'POST   /api/admin/gears                        (admin)',
+                'PUT    /api/admin/gears/{id}                   (admin)',
+                'PATCH  /api/admin/gears/{id}/availability      (admin)',
+                'DELETE /api/admin/gears/{id}                   (admin, hard delete)',
                 'POST   /api/admin/categories                (admin)',
                 'PUT    /api/admin/categories/{id}           (admin)',
                 'DELETE /api/admin/categories/{id}           (admin)',
@@ -113,6 +114,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Gear Management
         Route::post('/gears', [GearController::class, 'store']);
         Route::put('/gears/{id}', [GearController::class, 'update'])->whereNumber('id');
+        Route::patch('/gears/{id}/availability', [GearController::class, 'setAvailability'])->whereNumber('id');
         Route::delete('/gears/{id}', [GearController::class, 'destroy'])->whereNumber('id');
 
         // Category Management

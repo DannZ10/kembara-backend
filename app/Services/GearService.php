@@ -106,11 +106,27 @@ class GearService
         return $gear->fresh('category');
     }
 
-    public function deactivateGear(Gear $gear): Gear
+    public function setAvailability(Gear $gear, bool $available): Gear
     {
-        $gear->update(['is_available' => false]);
+        $gear->update(['is_available' => $available]);
         CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
 
-        return $gear->fresh();
+        return $gear->fresh('category');
+    }
+
+    /**
+     * Permanently delete a gear. Refused when it still has booking history
+     * (deactivate it instead) to protect referential integrity.
+     */
+    public function deleteGear(Gear $gear): bool
+    {
+        if ($gear->bookingItems()->exists()) {
+            throw new \Exception('Gear tidak dapat dihapus karena masih memiliki riwayat booking. Nonaktifkan saja.');
+        }
+
+        $deleted = $gear->delete();
+        CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
+
+        return $deleted;
     }
 }

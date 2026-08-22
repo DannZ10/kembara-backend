@@ -76,15 +76,35 @@ class GearController extends Controller
         ]);
     }
 
-    public function destroy(int $id): JsonResponse
+    public function setAvailability(Request $request, int $id): JsonResponse
     {
+        $validated = $request->validate(['available' => 'required|boolean']);
         $gear = Gear::findOrFail($id);
-        $deactivated = $this->gearService->deactivateGear($gear);
+        $updated = $this->gearService->setAvailability($gear, $validated['available']);
 
         return response()->json([
             'success' => true,
-            'message' => 'Gear berhasil dinonaktifkan',
-            'data' => $deactivated,
+            'message' => $validated['available'] ? 'Gear diaktifkan kembali' : 'Gear dinonaktifkan',
+            'data' => $updated,
         ]);
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        $gear = Gear::findOrFail($id);
+
+        try {
+            $this->gearService->deleteGear($gear);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Gear berhasil dihapus permanen',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 }
