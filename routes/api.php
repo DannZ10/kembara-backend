@@ -2,10 +2,13 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
+use App\Http\Controllers\Api\DeliveryController;
 use App\Http\Controllers\Api\GearCategoryController;
 use App\Http\Controllers\Api\GearController;
+use App\Http\Controllers\Api\GearVariantController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\SettingController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -15,13 +18,13 @@ use Illuminate\Support\Facades\Route;
 */
 Route::get('/', function () {
     return response()->json([
-        'name' => 'GearNest API',
-        'description' => 'Sistem rental & booking alat outdoor (Final Project FWD).',
+        'name' => 'Kembara.id API',
+        'description' => 'Sistem rental & booking perlengkapan outdoor (Final Project FWD).',
         'version' => '1.0.0',
         'status' => 'ok',
         'authentication' => 'Bearer token (Laravel Sanctum). Header: Authorization: Bearer <token>',
         'roles' => ['admin', 'customer'],
-        'documentation' => 'API_DOCUMENTATION.md (repo) & Postman collection "GearNest API".',
+        'documentation' => 'API_DOCUMENTATION.md (repo) & Postman collection "Kembara.id API".',
         'response_envelope' => ['success' => 'bool', 'message' => 'string?', 'data' => 'mixed', 'meta' => 'pagination?'],
         'endpoints' => [
             'auth' => [
@@ -84,6 +87,9 @@ Route::get('/gears/slug/{slug}', [GearController::class, 'showBySlug']);
 Route::get('/categories', [GearCategoryController::class, 'index']);
 Route::get('/categories/{id}', [GearCategoryController::class, 'show'])->whereNumber('id');
 
+// Live delivery-fee preview from a pasted Google Maps link (public, throttled).
+Route::post('/delivery/quote', [DeliveryController::class, 'quote'])->middleware('throttle:60,1');
+
 // Midtrans Payment Webhook Callback
 Route::post('/payments/webhook', [PaymentController::class, 'handleWebhook']);
 
@@ -116,6 +122,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/gears/{id}', [GearController::class, 'update'])->whereNumber('id');
         Route::patch('/gears/{id}/availability', [GearController::class, 'setAvailability'])->whereNumber('id');
         Route::delete('/gears/{id}', [GearController::class, 'destroy'])->whereNumber('id');
+
+        // Gear Variant Management (size/color + per-variant stock)
+        Route::post('/gears/{gearId}/variants', [GearVariantController::class, 'store'])->whereNumber('gearId');
+        Route::put('/gears/{gearId}/variants/{variantId}', [GearVariantController::class, 'update'])->whereNumber(['gearId', 'variantId']);
+        Route::delete('/gears/{gearId}/variants/{variantId}', [GearVariantController::class, 'destroy'])->whereNumber(['gearId', 'variantId']);
+
+        // Delivery-fee Settings
+        Route::get('/settings/delivery', [SettingController::class, 'delivery']);
+        Route::put('/settings/delivery', [SettingController::class, 'updateDelivery']);
 
         // Category Management
         Route::post('/categories', [GearCategoryController::class, 'store']);

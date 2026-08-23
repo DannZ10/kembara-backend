@@ -34,6 +34,9 @@ class BookingTest extends TestCase
                 'start_date' => now()->addDay()->format('Y-m-d'),
                 'end_date' => now()->addDays(3)->format('Y-m-d'),
                 'delivery_type' => 'pickup',
+                'identity_type_1' => 'KTP',
+                'identity_type_2' => 'SIM',
+                'identity_agreed' => true,
                 'items' => [
                     [
                         'gear_id' => $gear->id,
@@ -65,6 +68,9 @@ class BookingTest extends TestCase
                 'start_date' => now()->addDay()->format('Y-m-d'),
                 'end_date' => now()->addDays(2)->format('Y-m-d'),
                 'delivery_type' => 'pickup',
+                'identity_type_1' => 'KTP',
+                'identity_type_2' => 'SIM',
+                'identity_agreed' => true,
                 'items' => [
                     [
                         'gear_id' => $gear->id,
@@ -90,6 +96,9 @@ class BookingTest extends TestCase
             'start_date' => now()->addDay()->format('Y-m-d'),
             'end_date' => now()->addDays(2)->format('Y-m-d'),
             'delivery_type' => 'pickup',
+            'identity_type_1' => 'KTP',
+            'identity_type_2' => 'SIM',
+            'identity_agreed' => true,
             'items' => [
                 ['gear_id' => $gear->id, 'quantity' => 1],
             ],
@@ -117,6 +126,9 @@ class BookingTest extends TestCase
             'start_date' => now()->addDay()->format('Y-m-d'),
             'end_date' => now()->addDays(2)->format('Y-m-d'),
             'delivery_type' => 'pickup',
+            'identity_type_1' => 'KTP',
+            'identity_type_2' => 'SIM',
+            'identity_agreed' => true,
             'items' => [
                 ['gear_id' => $gear->id, 'quantity' => 2],
             ],
@@ -150,6 +162,9 @@ class BookingTest extends TestCase
             'start_date' => now()->addDay()->format('Y-m-d'),
             'end_date' => now()->addDays(2)->format('Y-m-d'),
             'delivery_type' => 'pickup',
+            'identity_type_1' => 'KTP',
+            'identity_type_2' => 'SIM',
+            'identity_agreed' => true,
             'items' => [
                 ['gear_id' => $gear->id, 'quantity' => 1],
             ],

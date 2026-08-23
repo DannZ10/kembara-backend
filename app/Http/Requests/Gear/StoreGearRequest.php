@@ -21,6 +21,8 @@ class StoreGearRequest extends FormRequest
             'price_per_day' => 'required|numeric|min:0',
             'stock_total' => 'required|integer|min:1',
             'image_url' => 'nullable|string|url|max:255',
+            'images' => 'nullable|array',
+            'images.*' => 'string|url|max:255',
             'weight_kg' => 'nullable|numeric|min:0',
             'is_available' => 'nullable|boolean',
         ];

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\Gear;
+use App\Models\GearVariant;
 use App\Models\User;
 use App\Support\Cache\CacheHelper;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -25,39 +26,78 @@ class BookingService
             $durationDays = max(1, $diffDays);
 
             $deliveryType = $data['delivery_type'];
-            $distanceKm = $data['delivery_distance_km'] ?? null;
-            $deliveryFee = $this->deliveryFeeService->calculateFee($deliveryType, $distanceKm);
 
             $subtotal = 0;
+            $totalWeightKg = 0;
             $itemsToCreate = [];
 
             foreach ($data['items'] as $itemData) {
+                $qty = $itemData['quantity'];
+
                 // Pessimistic locking to prevent overbooking
                 /** @var Gear $gear */
                 $gear = Gear::where('id', $itemData['gear_id'])
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                if (! $gear->is_available || $gear->stock_available < $itemData['quantity']) {
-                    throw new \Exception("Stok gear '{$gear->name}' tidak mencukupi untuk jumlah yang diminta ({$itemData['quantity']} unit). Sisa stok: {$gear->stock_available}");
+                if (! $gear->is_available) {
+                    throw new \Exception("Gear '{$gear->name}' sedang tidak tersedia.");
                 }
 
-                $lineTotal = $gear->price_per_day * $itemData['quantity'] * $durationDays;
+                // Stock is authoritative on the chosen variant when one is picked,
+                // otherwise on the gear itself.
+                $variantId = $itemData['gear_variant_id'] ?? null;
+                $variantLabel = null;
+
+                if ($variantId) {
+                    /** @var GearVariant $variant */
+                    $variant = GearVariant::where('id', $variantId)
+                        ->where('gear_id', $gear->id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $variant) {
+                        throw new \Exception("Varian yang dipilih untuk gear '{$gear->name}' tidak ditemukan.");
+                    }
+                    if ($variant->stock < $qty) {
+                        throw new \Exception("Stok varian '{$variant->label}' pada '{$gear->name}' tidak mencukupi ({$qty} unit). Sisa: {$variant->stock}");
+                    }
+
+                    $variant->decrement('stock', $qty);
+                    $variantLabel = $variant->label;
+                } else {
+                    if ($gear->stock_available < $qty) {
+                        throw new \Exception("Stok gear '{$gear->name}' tidak mencukupi untuk jumlah yang diminta ({$qty} unit). Sisa stok: {$gear->stock_available}");
+                    }
+                    $gear->decrement('stock_available', $qty);
+                }
+
+                $lineTotal = $gear->price_per_day * $qty * $durationDays;
                 $subtotal += $lineTotal;
+                $totalWeightKg += (float) $gear->weight_kg * $qty;
 
                 $itemsToCreate[] = [
                     'gear_id' => $gear->id,
-                    'quantity' => $itemData['quantity'],
+                    'gear_variant_id' => $variantId,
+                    'variant_label' => $variantLabel,
+                    'quantity' => $qty,
                     'price_per_day' => $gear->price_per_day,
                     'line_total' => $lineTotal,
                 ];
-
-                // Deduct available stock
-                $gear->decrement('stock_available', $itemData['quantity']);
             }
 
+            // Distance is derived server-side from the pasted Google Maps link
+            // (never trusted from the client). Weight drives the fee alongside it.
+            $mapsUrl = $deliveryType === 'delivery' ? ($data['delivery_maps_url'] ?? null) : null;
+            $distanceKm = $this->deliveryFeeService->resolveDistanceKm($mapsUrl);
+
+            if ($deliveryType === 'delivery' && $distanceKm === null) {
+                throw new \Exception('Tidak dapat membaca koordinat dari link Google Maps. Pastikan link menyertakan titik lokasi (share dari pin/tempat di Google Maps).');
+            }
+
+            $deliveryFee = $this->deliveryFeeService->calculateFee($deliveryType, $distanceKm, $totalWeightKg);
             $totalPrice = $subtotal + $deliveryFee;
-            $bookingCode = 'GN-'.date('Ymd').'-'.strtoupper(substr(uniqid(), -4));
+            $bookingCode = 'KMB-'.date('Ymd').'-'.strtoupper(substr(uniqid(), -4));
 
             /** @var Booking $booking */
             $booking = Booking::create([
@@ -68,12 +108,15 @@ class BookingService
                 'duration_days' => $durationDays,
                 'delivery_type' => $deliveryType,
                 'delivery_address' => $data['delivery_address'] ?? null,
+                'delivery_maps_url' => $mapsUrl,
                 'delivery_distance_km' => $distanceKm,
                 'delivery_fee' => $deliveryFee,
                 'subtotal' => $subtotal,
                 'total_price' => $totalPrice,
                 'status' => BookingStatus::PENDING,
                 'identity_verified' => false,
+                'identity_type_1' => $data['identity_type_1'] ?? null,
+                'identity_type_2' => $data['identity_type_2'] ?? null,
                 'notes' => $data['notes'] ?? null,
             ]);
 
@@ -145,9 +188,13 @@ class BookingService
 
             if (($targetStatus === BookingStatus::CANCELLED || $targetStatus === BookingStatus::RETURNED)
                 && ($oldStatus !== BookingStatus::CANCELLED && $oldStatus !== BookingStatus::RETURNED)) {
-                // Restore gear stocks
+                // Restore stock to wherever it was taken from (variant or gear).
                 foreach ($booking->items as $item) {
-                    $item->gear->increment('stock_available', $item->quantity);
+                    if ($item->gear_variant_id && $item->variant) {
+                        $item->variant->increment('stock', $item->quantity);
+                    } else {
+                        $item->gear->increment('stock_available', $item->quantity);
+                    }
                 }
             }
 

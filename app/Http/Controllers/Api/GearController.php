@@ -92,19 +92,11 @@ class GearController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $gear = Gear::findOrFail($id);
+        $this->gearService->deleteGear($gear);
 
-        try {
-            $this->gearService->deleteGear($gear);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Gear berhasil dihapus permanen',
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 422);
-        }
+        return response()->json([
+            'success' => true,
+            'message' => 'Gear berhasil dihapus',
+        ]);
     }
 }

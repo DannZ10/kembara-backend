@@ -16,12 +16,18 @@ class StoreBookingRequest extends FormRequest
         return [
             'items' => 'required|array|min:1',
             'items.*.gear_id' => 'required|exists:gears,id',
+            'items.*.gear_variant_id' => 'nullable|integer|exists:gear_variants,id',
             'items.*.quantity' => 'required|integer|min:1',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after:start_date',
             'delivery_type' => 'required|in:pickup,delivery',
             'delivery_address' => 'required_if:delivery_type,delivery|nullable|string|max:500',
-            'delivery_distance_km' => 'required_if:delivery_type,delivery|nullable|numeric|min:0.1|max:30',
+            // Distance is derived server-side from the pasted Google Maps link.
+            'delivery_maps_url' => 'required_if:delivery_type,delivery|nullable|string|max:1000',
+            // Two guarantee IDs handed over at pickup/delivery (both required).
+            'identity_type_1' => 'required|in:KTP,SIM,KTM,Paspor',
+            'identity_type_2' => 'required|in:KTP,SIM,KTM,Paspor',
+            'identity_agreed' => 'accepted',
             'notes' => 'nullable|string|max:1000',
         ];
     }
@@ -36,8 +42,12 @@ class StoreBookingRequest extends FormRequest
             'end_date.after' => 'Tanggal pengembalian harus setelah tanggal mulai sewa.',
             'delivery_type.required' => 'Pilih metode pengambilan (pickup atau delivery).',
             'delivery_address.required_if' => 'Alamat pengiriman wajib diisi jika memilih layanan delivery.',
-            'delivery_distance_km.required_if' => 'Jarak pengiriman wajib diisi jika memilih layanan delivery.',
-            'delivery_distance_km.max' => 'Jarak pengiriman maksimal 30 km.',
+            'delivery_maps_url.required_if' => 'Link Google Maps lokasi pengiriman wajib diisi jika memilih delivery.',
+            'identity_type_1.required' => 'Pilih dokumen identitas pertama untuk jaminan.',
+            'identity_type_1.in' => 'Identitas harus salah satu dari KTP, SIM, KTM, atau Paspor.',
+            'identity_type_2.required' => 'Pilih dokumen identitas kedua untuk jaminan.',
+            'identity_type_2.in' => 'Identitas harus salah satu dari KTP, SIM, KTM, atau Paspor.',
+            'identity_agreed.accepted' => 'Anda harus menyetujui syarat jaminan identitas sebelum melanjutkan.',
         ];
     }
 }

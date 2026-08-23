@@ -23,12 +23,15 @@ class Booking extends Model
         'duration_days',
         'delivery_type',
         'delivery_address',
+        'delivery_maps_url',
         'delivery_distance_km',
         'delivery_fee',
         'subtotal',
         'total_price',
         'status',
         'identity_verified',
+        'identity_type_1',
+        'identity_type_2',
         'notes',
     ];
 

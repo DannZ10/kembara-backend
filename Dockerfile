@@ -1,4 +1,4 @@
-# GearNest API — Laravel 13 on PHP 8.3 (predis = no redis extension needed)
+# Kembara.id API — Laravel 13 on PHP 8.3 (predis = no redis extension needed)
 FROM php:8.3-cli AS base
 
 RUN apt-get update \

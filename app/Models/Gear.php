@@ -6,12 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Sluggable\HasSlug;
 use Spatie\Sluggable\SlugOptions;
 
 class Gear extends Model
 {
-    use HasFactory, HasSlug;
+    use HasFactory, HasSlug, SoftDeletes;
 
     protected $fillable = [
         'category_id',
@@ -23,6 +24,7 @@ class Gear extends Model
         'stock_total',
         'stock_available',
         'image_url',
+        'images',
         'weight_kg',
         'is_available',
     ];
@@ -33,6 +35,7 @@ class Gear extends Model
         'stock_total' => 'integer',
         'stock_available' => 'integer',
         'is_available' => 'boolean',
+        'images' => 'array',
     ];
 
     public function getSlugOptions(): SlugOptions
@@ -50,5 +53,10 @@ class Gear extends Model
     public function bookingItems(): HasMany
     {
         return $this->hasMany(BookingItem::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(GearVariant::class);
     }
 }

@@ -15,6 +15,8 @@ class BookingItem extends Model
     protected $fillable = [
         'booking_id',
         'gear_id',
+        'gear_variant_id',
+        'variant_label',
         'quantity',
         'price_per_day',
         'line_total',
@@ -31,8 +33,14 @@ class BookingItem extends Model
         return $this->belongsTo(Booking::class);
     }
 
+    // withTrashed so a soft-deleted gear still resolves in booking history.
     public function gear(): BelongsTo
     {
-        return $this->belongsTo(Gear::class);
+        return $this->belongsTo(Gear::class)->withTrashed();
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(GearVariant::class, 'gear_variant_id');
     }
 }

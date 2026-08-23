@@ -12,7 +12,7 @@ class GearService
 
     public function getPaginatedGears(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        $query = Gear::with('category');
+        $query = Gear::with('category')->withCount('variants');
 
         // Public vs Admin availability filtering.
         // is_available omitted  -> public: only available gears.
@@ -77,12 +77,12 @@ class GearService
     // identical to encoding the model.
     public function getGearById(int $id): array
     {
-        return CacheHelper::remember(CacheHelper::CATALOG, "gears:{$id}", self::TTL, fn () => Gear::with('category')->findOrFail($id)->toArray());
+        return CacheHelper::remember(CacheHelper::CATALOG, "gears:{$id}", self::TTL, fn () => Gear::with(['category', 'variants'])->findOrFail($id)->toArray());
     }
 
     public function getGearBySlug(string $slug): array
     {
-        return CacheHelper::remember(CacheHelper::CATALOG, "gears:slug:{$slug}", self::TTL, fn () => Gear::with('category')->where('slug', $slug)->firstOrFail()->toArray());
+        return CacheHelper::remember(CacheHelper::CATALOG, "gears:slug:{$slug}", self::TTL, fn () => Gear::with(['category', 'variants'])->where('slug', $slug)->firstOrFail()->toArray());
     }
 
     public function createGear(array $data): Gear
@@ -115,15 +115,11 @@ class GearService
     }
 
     /**
-     * Permanently delete a gear. Refused when it still has booking history
-     * (deactivate it instead) to protect referential integrity.
+     * Soft-delete a gear: it leaves every catalog/admin listing immediately,
+     * while the row survives so booking history (FK restrictOnDelete) stays intact.
      */
     public function deleteGear(Gear $gear): bool
     {
-        if ($gear->bookingItems()->exists()) {
-            throw new \Exception('Gear tidak dapat dihapus karena masih memiliki riwayat booking. Nonaktifkan saja.');
-        }
-
         $deleted = $gear->delete();
         CacheHelper::flush(CacheHelper::CATALOG, CacheHelper::REPORTS);
 

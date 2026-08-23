@@ -22,6 +22,8 @@ class UpdateGearRequest extends FormRequest
             'stock_total' => 'sometimes|required|integer|min:0',
             'stock_available' => 'sometimes|required|integer|min:0',
             'image_url' => 'nullable|string|url|max:255',
+            'images' => 'nullable|array',
+            'images.*' => 'string|url|max:255',
             'weight_kg' => 'nullable|numeric|min:0',
             'is_available' => 'nullable|boolean',
         ];

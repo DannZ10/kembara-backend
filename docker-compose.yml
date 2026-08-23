@@ -1,4 +1,4 @@
-# Backend stack — run from gearnest-api/:  docker compose up --build
+# Backend stack — run from kembara-api/:  docker compose up --build
 services:
   mysql:
     image: mysql:8.0
@@ -53,7 +53,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: "null"
       SANCTUM_IDLE_TIMEOUT: "30"
-      # Read from gearnest-api/.env (gitignored) so keys stay out of this file.
+      # Read from kembara-api/.env (gitignored) so keys stay out of this file.
       # Falls back to the offline placeholder when unset.
       MIDTRANS_MERCHANT_ID: ${MIDTRANS_MERCHANT_ID:-}
       MIDTRANS_SERVER_KEY: ${MIDTRANS_SERVER_KEY:-SB-Mid-server-TESTKEY}

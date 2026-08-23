@@ -14,7 +14,7 @@ class UserSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@gearnest.com'],
             [
-                'name' => 'Admin GearNest',
+                'name' => 'Admin Kembara.id',
                 'password' => Hash::make('admin123'),
                 'phone' => '081234567890',
                 'address' => 'Jl. Outdoor No. 1, Jakarta Central',

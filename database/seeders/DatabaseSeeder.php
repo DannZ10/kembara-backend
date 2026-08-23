@@ -12,6 +12,9 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             GearCategorySeeder::class,
             GearSeeder::class,
+            GearVariantSeeder::class,
+            GearGallerySeeder::class,
+            SettingsSeeder::class,
         ]);
     }
 }

@@ -1,4 +1,4 @@
-# 🏕️ GearNest API — Outdoor Rental Management System (Backend)
+# 🏕️ Kembara.id API — Outdoor Rental Management System (Backend)
 
 [![Laravel](https://img.shields.io/badge/Laravel-11.x-FF2D20?style=for-the-badge&logo=laravel)](https://laravel.com)
 [![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=for-the-badge&logo=php)](https://php.net)
@@ -6,7 +6,7 @@
 [![Midtrans](https://img.shields.io/badge/Payment-Midtrans_Snap-blue?style=for-the-badge)](https://midtrans.com)
 [![Tests](https://img.shields.io/badge/Tests-19%2F19_Passed-brightgreen?style=for-the-badge)](https://phpunit.de)
 
-**GearNest API** adalah sistem RESTful API backend untuk platform persewaan alat outdoor & peralatan gunung. Dibangun menggunakan **Laravel 11**, arsitektur **Hybrid UUID + ID**, **Pessimistic Stock Locking**, dan integrasi payment gateway **Midtrans Snap**.
+**Kembara.id API** adalah sistem RESTful API backend untuk platform persewaan alat outdoor & peralatan gunung. Dibangun menggunakan **Laravel 11**, arsitektur **Hybrid UUID + ID**, **Pessimistic Stock Locking**, dan integrasi payment gateway **Midtrans Snap**.
 
 ---
 
@@ -16,8 +16,8 @@
 - ⛺ **Katalog & Filter Gear**: Pencarian kata kunci, filter kategori (`slug`), filter rentang harga, pengurutan, dan paginasi.
 - 📦 **Booking Engine Transaksional**:
   - **Pessimistic Locking (`lockForUpdate()`)** untuk menjamin stok tidak minus saat pemesanan berbarengan.
-  - Perhitungan biaya antar dinamis via `DeliveryFeeService` (Pickup Rp 0, Delivery Rp 10.000 + Rp 3.000/km).
-  - Penjanaan kode booking unik (`GN-YYYYMMDD-NNN`).
+  - Perhitungan biaya antar dinamis via `DeliveryFeeService` (Pickup Rp 0; Delivery Rp 10.000 untuk ≤5km & ≤5kg, lalu +Rp 1.000 per km/kg — jarak dihitung dari link Google Maps).
+  - Penjanaan kode booking unik (`KMB-YYYYMMDD-XXXX`).
   - Isolasi data transaksi antar pengguna (*Customer Data Isolation*).
 - 💳 **Midtrans Snap Payment Integration**:
   - Generate Snap Token & Snap Redirect URL otomatis.
@@ -51,8 +51,8 @@
 
 ### 1. Clone & Install Dependencies
 ```bash
-git clone https://github.com/DannZ10/gearnest-backend.git gearnest-api
-cd gearnest-api
+git clone https://github.com/DannZ10/kembara-backend.git kembara-api
+cd kembara-api
 composer install
 ```
 
