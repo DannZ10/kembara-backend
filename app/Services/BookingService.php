@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\BookingStatus;
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Gear;
 use App\Models\GearVariant;
@@ -124,6 +125,8 @@ class BookingService
                 $booking->items()->create($item);
             }
 
+            ActivityLog::record($booking->id, 'booking.created', 'Booking dibuat oleh penyewa.');
+
             return $booking->load(['items.gear', 'user']);
         });
 
@@ -136,7 +139,7 @@ class BookingService
     public function getUserBookings(User $user, array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
         $query = Booking::where('user_id', $user->id)
-            ->with(['items.gear', 'payment']);
+            ->with(['items.gear', 'payment', 'activities.actor:id,name']);
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
@@ -151,13 +154,13 @@ class BookingService
     {
         return Booking::where('id', $id)
             ->where('user_id', $user->id)
-            ->with(['items.gear', 'payment'])
+            ->with(['items.gear', 'payment', 'activities.actor:id,name'])
             ->firstOrFail();
     }
 
     public function getAllBookingsAdmin(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        $query = Booking::with(['user', 'items.gear', 'payment']);
+        $query = Booking::with(['user', 'items.gear', 'payment', 'activities.actor:id,name']);
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
@@ -198,7 +201,20 @@ class BookingService
                 }
             }
 
-            $booking->update(['status' => $targetStatus]);
+            $updates = ['status' => $targetStatus];
+
+            // Stamp handover milestones the first time each is reached.
+            if ($targetStatus === BookingStatus::ACTIVE && $booking->picked_up_at === null) {
+                $updates['picked_up_at'] = now();
+            }
+            if ($targetStatus === BookingStatus::RETURNED && $booking->returned_at === null) {
+                $updates['returned_at'] = now();
+            }
+
+            $booking->update($updates);
+
+            $oldValue = $oldStatus instanceof BookingStatus ? $oldStatus->value : $oldStatus;
+            ActivityLog::record($booking->id, 'status.changed', "Status booking: {$oldValue} → {$targetStatus->value}.");
 
             return $booking->fresh(['items.gear', 'user', 'payment']);
         });
@@ -212,6 +228,12 @@ class BookingService
     public function verifyIdentity(Booking $booking, bool $verified = true): Booking
     {
         $booking->update(['identity_verified' => $verified]);
+
+        ActivityLog::record(
+            $booking->id,
+            'identity.verified',
+            $verified ? 'Jaminan identitas diverifikasi admin.' : 'Verifikasi jaminan identitas dibatalkan.'
+        );
 
         return $booking->fresh();
     }

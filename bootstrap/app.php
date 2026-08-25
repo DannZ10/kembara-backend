@@ -23,6 +23,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'is.admin' => \App\Http\Middleware\IsAdmin::class,
         ]);
+
+        // Global API rate limit (login/register/quote keep their stricter
+        // per-route throttles). Named limiter 'api' so its bucket stays
+        // separate from the 'auth' login bucket — see AppServiceProvider.
+        $middleware->api(append: [
+            'throttle:api',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $isApi = fn (Request $request) => $request->is('api/*') || $request->expectsJson();

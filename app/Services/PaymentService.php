@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\BookingStatus;
 use App\Enums\PaymentStatus;
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
@@ -165,9 +166,11 @@ class PaymentService
                     'paid_at' => now(),
                 ]);
                 $this->bookingService->updateBookingStatus($booking, BookingStatus::CONFIRMED);
+                ActivityLog::record($booking->id, 'payment.paid', 'Pembayaran diterima via Midtrans ('.($paymentMethod ?? 'online').').');
             } elseif (in_array($transactionStatus, ['expire', 'cancel', 'deny'], true)) {
                 $payment->update(['status' => PaymentStatus::EXPIRED]);
                 $this->bookingService->updateBookingStatus($booking, BookingStatus::CANCELLED);
+                ActivityLog::record($booking->id, 'payment.failed', 'Pembayaran gagal/kadaluarsa ('.$transactionStatus.').');
             }
 
             return $payment->fresh(['booking']);

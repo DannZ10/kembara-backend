@@ -4,7 +4,7 @@
 [![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=for-the-badge&logo=php)](https://php.net)
 [![Sanctum](https://img.shields.io/badge/Auth-Sanctum-red?style=for-the-badge)](https://laravel.com/docs/sanctum)
 [![Midtrans](https://img.shields.io/badge/Payment-Midtrans_Snap-blue?style=for-the-badge)](https://midtrans.com)
-[![Tests](https://img.shields.io/badge/Tests-19%2F19_Passed-brightgreen?style=for-the-badge)](https://phpunit.de)
+[![Tests](https://img.shields.io/badge/Tests-25%2F25_Passed-brightgreen?style=for-the-badge)](https://phpunit.de)
 
 **Kembara.id API** adalah sistem RESTful API backend untuk platform persewaan alat outdoor & peralatan gunung. Dibangun menggunakan **Laravel 11**, arsitektur **Hybrid UUID + ID**, **Pessimistic Stock Locking**, dan integrasi payment gateway **Midtrans Snap**.
 
@@ -25,6 +25,10 @@
   - Penanganan otomatis status `PAID` ➔ Booking `CONFIRMED`.
   - Penanganan otomatis status `EXPIRED`/`CANCELLED` ➔ Pembatalan booking & **Pengembalian Stok Gear Otomatis**.
 - 📊 **Laporan & Analytics Admin**: Dashboard summary (omset, total booking, sewa aktif, alert stok menipis ≤ 3 unit, dan ranking gear terpopuler).
+- 🔁 **Handover & Return Tracking**: Stempel otomatis `picked_up_at` / `returned_at` saat transisi status, plus penanda pengembalian kartu jaminan identitas (`identity-returned`).
+- 🕓 **Activity Log (Audit Trail)**: Setiap aksi penting tercatat — `booking.created`, `status.changed`, `payment.paid` / `payment.failed`, `identity.verified`, `identity.returned` — dapat dibaca per booking maupun feed admin.
+- 🔓 **Google OAuth (`Socialite`)**: Login / daftar via akun Google (stateless, token dikirim balik ke SPA).
+- 🚦 **Named Rate Limiters**: Bucket `api` / `auth` / `google` / `delivery` terpisah, sehingga limit login (10/menit) tidak terkuras oleh trafik katalog biasa.
 
 ---
 
@@ -108,9 +112,31 @@ PASS  Tests\Feature\Api\PaymentAndReportTest
 ✓ webhook expire restores gear stock
 ✓ admin can view reports
 
-Tests:    19 passed (70 assertions)
-Duration: 1.62s
+Tests:    25 passed (87 assertions)
 ```
+
+> Ringkasan di atas menampilkan test inti; total **25 test / 87 assertion** hijau (`php artisan test`). Alur end-to-end lengkap diuji via Postman/Newman (lihat bawah).
+
+---
+
+## 🤖 API Testing Automation (Postman / Newman)
+
+End-to-end test suite yang menelusuri seluruh alur (katalog → auth → booking → payment → handover admin → audit trail → reports) lengkap dengan assertion di tiap response, termasuk uji otorisasi negatif (401/403) dan entrypoint OAuth (302).
+
+```bash
+# API harus berjalan + database ter-seed lebih dulu
+npx newman run "postman/Kembara.id.postman_collection.json" \
+  -e "postman/Kembara.id.local.postman_environment.json" \
+  --ignore-redirects
+```
+
+- Koleksi & environment ada di [`postman/`](postman/) — panduan lengkap: [`postman/README.md`](postman/README.md).
+- Bisa juga di-import ke aplikasi Postman (Import → pilih kedua file JSON → jalankan Collection Runner).
+- Suite mengembalikan booking uji ke status `returned` sehingga **stok gear otomatis dipulihkan** — aman dijalankan berulang.
+
+## 📖 Dokumentasi API
+
+Referensi endpoint lengkap (envelope response, auth, rate limit, body request, lifecycle status booking, daftar aksi audit): [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md).
 
 ---
 

@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
 
@@ -21,7 +24,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->defineRateLimiters();
         $this->enforceTokenIdleTimeout();
+    }
+
+    /**
+     * Named rate limiters. Each name is its own bucket — inline `throttle:x,y`
+     * middlewares are all unnamed and share one cache key per IP, so a strict
+     * login limit would be drained by ordinary catalog traffic. Named limiters
+     * keep the login/register bucket isolated from general API usage.
+     */
+    private function defineRateLimiters(): void
+    {
+        RateLimiter::for('api', fn (Request $r) => Limit::perMinute(120)->by($r->user()?->id ?: $r->ip()));
+        RateLimiter::for('auth', fn (Request $r) => Limit::perMinute(10)->by($r->ip()));
+        RateLimiter::for('google', fn (Request $r) => Limit::perMinute(30)->by($r->ip()));
+        RateLimiter::for('delivery', fn (Request $r) => Limit::perMinute(60)->by($r->ip()));
     }
 
     /**

@@ -88,7 +88,13 @@ class DeliveryFeeService
         $url = trim($url);
         $host = parse_url($url, PHP_URL_HOST) ?: '';
 
-        if (str_contains($host, 'goo.gl') || str_contains($host, 'g.co')) {
+        // Only resolve redirects for genuine Google short-link hosts (exact match
+        // or a real *.goo.gl subdomain) — never a host that merely CONTAINS
+        // "goo.gl" (e.g. goo.gl.evil.com), which would be an SSRF pivot to an
+        // attacker-controlled or internal host.
+        $isGoogleShortLink = in_array($host, ['goo.gl', 'g.co', 'maps.app.goo.gl'], true)
+            || str_ends_with($host, '.goo.gl');
+        if ($isGoogleShortLink) {
             $url = $this->followRedirect($url) ?? $url;
         }
 

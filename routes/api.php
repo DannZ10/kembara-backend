@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DeliveryController;
@@ -77,8 +78,13 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 // Throttle auth endpoints to blunt credential brute-forcing (10 req/min per IP).
-Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+// Named 'auth' limiter so this bucket is isolated from general API traffic.
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+
+// Google OAuth (browser redirects, not XHR — hence GET + full-page redirect).
+Route::get('/auth/google/redirect', [AuthController::class, 'googleRedirect'])->middleware('throttle:google');
+Route::get('/auth/google/callback', [AuthController::class, 'googleCallback'])->middleware('throttle:google');
 
 Route::get('/gears', [GearController::class, 'index']);
 Route::get('/gears/{id}', [GearController::class, 'show'])->whereNumber('id');
@@ -88,7 +94,7 @@ Route::get('/categories', [GearCategoryController::class, 'index']);
 Route::get('/categories/{id}', [GearCategoryController::class, 'show'])->whereNumber('id');
 
 // Live delivery-fee preview from a pasted Google Maps link (public, throttled).
-Route::post('/delivery/quote', [DeliveryController::class, 'quote'])->middleware('throttle:60,1');
+Route::post('/delivery/quote', [DeliveryController::class, 'quote'])->middleware('throttle:delivery');
 
 // Midtrans Payment Webhook Callback
 Route::post('/payments/webhook', [PaymentController::class, 'handleWebhook']);
@@ -141,6 +147,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/bookings', [BookingController::class, 'indexAdmin']);
         Route::patch('/bookings/{id}/status', [BookingController::class, 'updateStatus']);
         Route::patch('/bookings/{id}/verify', [BookingController::class, 'verifyIdentity']);
+        Route::patch('/bookings/{id}/identity-returned', [BookingController::class, 'markIdentityReturned']);
+
+        // Activity log / audit trail
+        Route::get('/activity-logs', [ActivityController::class, 'index']);
 
         // Admin Analytics & Reports
         Route::get('/reports/dashboard', [ReportController::class, 'dashboard']);

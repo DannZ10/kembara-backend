@@ -11,26 +11,29 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        User::updateOrCreate(
+        // role is not mass-assignable (guarded), so set it after the fill.
+        $admin = User::updateOrCreate(
             ['email' => 'admin@gearnest.com'],
             [
                 'name' => 'Admin Kembara.id',
                 'password' => Hash::make('admin123'),
                 'phone' => '081234567890',
                 'address' => 'Jl. Outdoor No. 1, Jakarta Central',
-                'role' => UserRole::ADMIN,
             ]
         );
+        $admin->role = UserRole::ADMIN;
+        $admin->save();
 
-        User::updateOrCreate(
+        $customer = User::updateOrCreate(
             ['email' => 'customer@gearnest.com'],
             [
                 'name' => 'Andi Outdoor',
                 'password' => Hash::make('customer123'),
                 'phone' => '089876543210',
                 'address' => 'Jl. Pendaki No. 88, Bandung',
-                'role' => UserRole::CUSTOMER,
             ]
         );
+        $customer->role = UserRole::CUSTOMER;
+        $customer->save();
     }
 }

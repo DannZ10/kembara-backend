@@ -10,6 +10,7 @@
         "dedoc/scramble": "^0.13.40",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.0",
+        "laravel/socialite": "^5.30",
         "laravel/tinker": "^3.0",
         "midtrans/midtrans-php": "^2.6",
         "predis/predis": "^3.6",

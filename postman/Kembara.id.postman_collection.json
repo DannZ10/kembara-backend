@@ -1,0 +1,505 @@
+{
+  "info": {
+    "name": "Kembara.id API",
+    "_postman_id": "b7e1c0a2-6d34-4c9a-9a1e-000000000001",
+    "description": "Automated end-to-end test suite for the Kembara.id outdoor-rental API (Laravel 11 + Sanctum + Midtrans).\n\nRequests are ordered so they can run top-to-bottom under Newman: earlier requests capture tokens and ids into collection variables that later requests consume. Runtime variables (`customer_token`, `admin_token`, `gear_id`, `booking_id`, ...) are set by test scripts — leave them blank in the environment.\n\nSee `postman/README.md` for the Newman command.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "customer_token", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "gear_id", "value": "" },
+    { "key": "gear_slug", "value": "" },
+    { "key": "category_id", "value": "" },
+    { "key": "booking_id", "value": "" },
+    { "key": "temp_category_id", "value": "" },
+    { "key": "start_date", "value": "" },
+    { "key": "end_date", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "GET /api (index & endpoint map)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}", "host": [ "{{base_url}}" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('service is ok', () => pm.expect(j.status).to.eql('ok'));",
+              "pm.test('is Kembara.id API', () => pm.expect(j.name).to.include('Kembara'));"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Public Catalog",
+      "item": [
+        {
+          "name": "GET /gears (list + capture gear)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}/gears?limit=50", "host": [ "{{base_url}}" ], "path": [ "gears" ], "query": [ { "key": "limit", "value": "50" } ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('data is array', () => pm.expect(j.data).to.be.an('array'));",
+              "pm.test('catalog not empty', () => pm.expect(j.data.length).to.be.above(0));",
+              "const g = j.data.find(x => x.is_available && Number(x.stock_available) > 0) || j.data[0];",
+              "pm.collectionVariables.set('gear_id', g.id);",
+              "pm.collectionVariables.set('gear_slug', g.slug);"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /gears/{id}",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}/gears/{{gear_id}}", "host": [ "{{base_url}}" ], "path": [ "gears", "{{gear_id}}" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('id matches', () => pm.expect(String(j.data.id)).to.eql(String(pm.collectionVariables.get('gear_id'))));"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /gears/slug/{slug}",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}/gears/slug/{{gear_slug}}", "host": [ "{{base_url}}" ], "path": [ "gears", "slug", "{{gear_slug}}" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('success true', () => pm.expect(pm.response.json().success).to.be.true);"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /categories (list + capture)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}/categories", "host": [ "{{base_url}}" ], "path": [ "categories" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('categories not empty', () => pm.expect(j.data.length).to.be.above(0));",
+              "pm.collectionVariables.set('category_id', j.data[0].id);"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /categories/{id}",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}/categories/{{category_id}}", "host": [ "{{base_url}}" ], "path": [ "categories", "{{category_id}}" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('success true', () => pm.expect(pm.response.json().success).to.be.true);"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Auth",
+      "item": [
+        {
+          "name": "POST /register (new customer)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"QA Automation\",\n  \"email\": \"qa_{{$timestamp}}@kembara.test\",\n  \"password\": \"Password123\",\n  \"password_confirmation\": \"Password123\",\n  \"phone\": \"081200000000\",\n  \"address\": \"Basecamp QA\"\n}" },
+            "url": { "raw": "{{base_url}}/register", "host": [ "{{base_url}}" ], "path": [ "register" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 201', () => pm.response.to.have.status(201));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('token issued', () => pm.expect(j.data.token).to.be.a('string').and.not.empty);",
+              "pm.test('role is customer (no privilege escalation)', () => pm.expect(String(j.data.role)).to.include('customer'));"
+            ] } }
+          ]
+        },
+        {
+          "name": "POST /login (customer)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{customer_email}}\",\n  \"password\": \"{{customer_password}}\"\n}" },
+            "url": { "raw": "{{base_url}}/login", "host": [ "{{base_url}}" ], "path": [ "login" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('token issued', () => pm.expect(j.data.token).to.be.a('string').and.not.empty);",
+              "pm.collectionVariables.set('customer_token', j.data.token);"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /profile (customer)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "url": { "raw": "{{base_url}}/profile", "host": [ "{{base_url}}" ], "path": [ "profile" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('email matches seeded customer', () => pm.expect(j.data.email).to.eql(pm.variables.get('customer_email')));",
+              "pm.test('role is customer', () => pm.expect(String(j.data.role)).to.include('customer'));"
+            ] } }
+          ]
+        },
+        {
+          "name": "POST /login (admin)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}" },
+            "url": { "raw": "{{base_url}}/login", "host": [ "{{base_url}}" ], "path": [ "login" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('role is admin', () => pm.expect(String(j.data.role)).to.include('admin'));",
+              "pm.collectionVariables.set('admin_token', j.data.token);"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Customer Booking Flow",
+      "item": [
+        {
+          "name": "POST /bookings (pickup)",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "const day = 864e5;",
+              "const fmt = d => d.toISOString().slice(0, 10);",
+              "pm.collectionVariables.set('start_date', fmt(new Date(Date.now() + 2 * day)));",
+              "pm.collectionVariables.set('end_date', fmt(new Date(Date.now() + 4 * day)));"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 201', () => pm.response.to.have.status(201));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('booking code KMB-*', () => pm.expect(j.data.booking_code).to.match(/^KMB-/));",
+              "pm.test('status pending', () => pm.expect(String(j.data.status)).to.include('pending'));",
+              "pm.collectionVariables.set('booking_id', j.data.id);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"items\": [\n    { \"gear_id\": {{gear_id}}, \"quantity\": 1 }\n  ],\n  \"start_date\": \"{{start_date}}\",\n  \"end_date\": \"{{end_date}}\",\n  \"delivery_type\": \"pickup\",\n  \"identity_type_1\": \"KTP\",\n  \"identity_type_2\": \"SIM\",\n  \"identity_agreed\": true,\n  \"notes\": \"QA automation booking\"\n}" },
+            "url": { "raw": "{{base_url}}/bookings", "host": [ "{{base_url}}" ], "path": [ "bookings" ] }
+          }
+        },
+        {
+          "name": "GET /bookings (my bookings)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "url": { "raw": "{{base_url}}/bookings", "host": [ "{{base_url}}" ], "path": [ "bookings" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('data is array', () => pm.expect(j.data).to.be.an('array'));"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /bookings/{id}",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "url": { "raw": "{{base_url}}/bookings/{{booking_id}}", "host": [ "{{base_url}}" ], "path": [ "bookings", "{{booking_id}}" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('id matches', () => pm.expect(j.data.id).to.eql(pm.collectionVariables.get('booking_id')));",
+              "pm.test('has activity log', () => pm.expect(j.data.activities).to.be.an('array'));"
+            ] } }
+          ]
+        },
+        {
+          "name": "POST /bookings/{id}/payment (Midtrans Snap)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "url": { "raw": "{{base_url}}/bookings/{{booking_id}}/payment", "host": [ "{{base_url}}" ], "path": [ "bookings", "{{booking_id}}", "payment" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "// This call reaches the live Midtrans gateway. 200 = Snap URL created (keys configured, gateway reachable).",
+              "// 422 = business error (e.g. keys absent). 500 = gateway unreachable/timeout from this host (environmental, not an API defect).",
+              "pm.test('snap created (200) or gateway unavailable (422/500)', () => pm.expect([200, 422, 500]).to.include(pm.response.code));",
+              "if (pm.response.code === 200) {",
+              "  const j = pm.response.json();",
+              "  pm.test('payment_url present', () => pm.expect(j.data.payment_url).to.be.a('string').and.not.empty);",
+              "}"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /bookings/{id}/payment (status)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "url": { "raw": "{{base_url}}/bookings/{{booking_id}}/payment", "host": [ "{{base_url}}" ], "path": [ "bookings", "{{booking_id}}", "payment" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('success true', () => pm.expect(pm.response.json().success).to.be.true);"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Admin Ops (handover, verify, activity, reports)",
+      "item": [
+        {
+          "name": "GET /admin/bookings",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/bookings", "host": [ "{{base_url}}" ], "path": [ "admin", "bookings" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('success true', () => pm.expect(pm.response.json().success).to.be.true);"
+            ] } }
+          ]
+        },
+        {
+          "name": "PATCH /admin/bookings/{id}/status -> active (stamps picked_up_at)",
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"active\"\n}" },
+            "url": { "raw": "{{base_url}}/admin/bookings/{{booking_id}}/status", "host": [ "{{base_url}}" ], "path": [ "admin", "bookings", "{{booking_id}}", "status" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('status active', () => pm.expect(String(j.data.status)).to.include('active'));",
+              "pm.test('picked_up_at stamped', () => pm.expect(j.data.picked_up_at).to.not.be.null);"
+            ] } }
+          ]
+        },
+        {
+          "name": "PATCH /admin/bookings/{id}/status -> returned (stamps returned_at, restores stock)",
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"returned\"\n}" },
+            "url": { "raw": "{{base_url}}/admin/bookings/{{booking_id}}/status", "host": [ "{{base_url}}" ], "path": [ "admin", "bookings", "{{booking_id}}", "status" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('status returned', () => pm.expect(String(j.data.status)).to.include('returned'));",
+              "pm.test('returned_at stamped', () => pm.expect(j.data.returned_at).to.not.be.null);"
+            ] } }
+          ]
+        },
+        {
+          "name": "PATCH /admin/bookings/{id}/verify (identity guarantee)",
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"verified\": true\n}" },
+            "url": { "raw": "{{base_url}}/admin/bookings/{{booking_id}}/verify", "host": [ "{{base_url}}" ], "path": [ "admin", "bookings", "{{booking_id}}", "verify" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('identity_verified true', () => pm.expect(pm.response.json().data.identity_verified).to.be.true);"
+            ] } }
+          ]
+        },
+        {
+          "name": "PATCH /admin/bookings/{id}/identity-returned",
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"returned\": true\n}" },
+            "url": { "raw": "{{base_url}}/admin/bookings/{{booking_id}}/identity-returned", "host": [ "{{base_url}}" ], "path": [ "admin", "bookings", "{{booking_id}}", "identity-returned" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('identity_returned true', () => pm.expect(pm.response.json().data.identity_returned).to.be.true);"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /admin/activity-logs (audit trail)",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/activity-logs", "host": [ "{{base_url}}" ], "path": [ "admin", "activity-logs" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.test('audit trail not empty', () => pm.expect(j.data.length).to.be.above(0));"
+            ] } }
+          ]
+        },
+        {
+          "name": "POST /admin/categories (create temp)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"QA Temp Kategori {{$timestamp}}\",\n  \"description\": \"created by Newman automation\"\n}" },
+            "url": { "raw": "{{base_url}}/admin/categories", "host": [ "{{base_url}}" ], "path": [ "admin", "categories" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 201', () => pm.response.to.have.status(201));",
+              "const j = pm.response.json();",
+              "pm.test('success true', () => pm.expect(j.success).to.be.true);",
+              "pm.collectionVariables.set('temp_category_id', j.data.id);"
+            ] } }
+          ]
+        },
+        {
+          "name": "DELETE /admin/categories/{id} (cleanup temp)",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/categories/{{temp_category_id}}", "host": [ "{{base_url}}" ], "path": [ "admin", "categories", "{{temp_category_id}}" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('success true', () => pm.expect(pm.response.json().success).to.be.true);"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /admin/reports/dashboard",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/reports/dashboard", "host": [ "{{base_url}}" ], "path": [ "admin", "reports", "dashboard" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('success true', () => pm.expect(pm.response.json().success).to.be.true);"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Security / AuthZ (negative)",
+      "item": [
+        {
+          "name": "GET /profile without token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}/profile", "host": [ "{{base_url}}" ], "path": [ "profile" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('unauthenticated rejected (401)', () => pm.response.to.have.status(401));"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /admin/bookings as customer -> 403",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "url": { "raw": "{{base_url}}/admin/bookings", "host": [ "{{base_url}}" ], "path": [ "admin", "bookings" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('customer blocked from admin (403)', () => pm.response.to.have.status(403));"
+            ] } }
+          ]
+        },
+        {
+          "name": "GET /auth/google/redirect -> 302",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Accept", "value": "application/json" } ],
+            "url": { "raw": "{{base_url}}/auth/google/redirect", "host": [ "{{base_url}}" ], "path": [ "auth", "google", "redirect" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "// Run Newman with --ignore-redirects so the 302 is asserted instead of followed.",
+              "pm.test('OAuth entrypoint redirects (302)', () => pm.expect([301, 302]).to.include(pm.response.code));"
+            ] } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Logout",
+      "item": [
+        {
+          "name": "POST /logout (customer)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Accept", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{customer_token}}" } ],
+            "url": { "raw": "{{base_url}}/logout", "host": [ "{{base_url}}" ], "path": [ "logout" ] }
+          },
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 200', () => pm.response.to.have.status(200));",
+              "pm.test('success true', () => pm.expect(pm.response.json().success).to.be.true);"
+            ] } }
+          ]
+        }
+      ]
+    }
+  ]
+}

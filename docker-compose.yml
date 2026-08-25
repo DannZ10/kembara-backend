@@ -6,7 +6,7 @@ services:
       MYSQL_DATABASE: gearnest_db
       MYSQL_ROOT_PASSWORD: gearnest_root
     ports:
-      - "3307:3306"   # host 3307 avoids clashing with a local MySQL on 3306
+      - "127.0.0.1:3307:3306"   # bind localhost only (not 0.0.0.0); 3307 avoids a local MySQL on 3306
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:

@@ -29,9 +29,12 @@ class Booking extends Model
         'subtotal',
         'total_price',
         'status',
+        'picked_up_at',
+        'returned_at',
         'identity_verified',
         'identity_type_1',
         'identity_type_2',
+        'identity_returned',
         'notes',
     ];
 
@@ -40,6 +43,9 @@ class Booking extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'picked_up_at' => 'datetime',
+            'returned_at' => 'datetime',
+            'identity_returned' => 'boolean',
             'duration_days' => 'integer',
             'delivery_type' => DeliveryType::class,
             'delivery_distance_km' => 'decimal:2',
@@ -64,5 +70,10 @@ class Booking extends Model
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class)->latest('created_at');
     }
 }

@@ -104,4 +104,26 @@ class BookingController extends Controller
             'data' => $verified,
         ]);
     }
+
+    /** Mark whether the 2 guarantee ID documents were handed back to the customer. */
+    public function markIdentityReturned(Request $request, string $id): JsonResponse
+    {
+        $booking = Booking::findOrFail($id);
+        $returned = $request->boolean('returned', true);
+        $booking->update(['identity_returned' => $returned]);
+
+        \App\Models\ActivityLog::record(
+            $booking->id,
+            'identity.returned',
+            $returned ? 'Kartu jaminan identitas dikembalikan ke penyewa.' : 'Status pengembalian jaminan dibatalkan.'
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => $returned
+                ? 'Kartu jaminan identitas ditandai sudah dikembalikan'
+                : 'Status pengembalian jaminan dibatalkan',
+            'data' => $booking->fresh(),
+        ]);
+    }
 }

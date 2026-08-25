@@ -14,13 +14,14 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
+    // 'role' is deliberately NOT mass-assignable — it must be set explicitly
+    // (register forces 'customer'), so nobody can escalate to admin via input.
     protected $fillable = [
         'name',
         'email',
         'password',
         'phone',
         'address',
-        'role',
     ];
 
     protected $hidden = [
