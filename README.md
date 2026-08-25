@@ -134,13 +134,14 @@ npx newman run "postman/Kembara.id.postman_collection.json" \
 - Bisa juga di-import ke aplikasi Postman (Import → pilih kedua file JSON → jalankan Collection Runner).
 - Suite mengembalikan booking uji ke status `returned` sehingga **stok gear otomatis dipulihkan** — aman dijalankan berulang.
 
-## 📖 Dokumentasi API
+## 📖 Dokumentasi
 
-Referensi endpoint lengkap (envelope response, auth, rate limit, body request, lifecycle status booking, daftar aksi audit): [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md).
+- **Referensi API** — endpoint lengkap (envelope response, auth, rate limit, body request, lifecycle status booking, daftar aksi audit): [`API_DOCUMENTATION.md`](API_DOCUMENTATION.md).
+- **Laporan hasil testing** — ringkasan PHPUnit (25/25) + Newman end-to-end (69/69), coverage per folder: [`TESTING.md`](TESTING.md).
 
 ---
 
 ## 🔑 Kredensial Demo Cepat
 
-- **Admin Account**: `admin@gearnest.com` / `admin123`
-- **Customer Account**: `customer@gearnest.com` / `customer123`
+- **Admin Account**: `admin@kembara.com` / `admin123`
+- **Customer Account**: `customer@kembara.com` / `customer123`

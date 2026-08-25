@@ -3,14 +3,14 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_DATABASE: gearnest_db
-      MYSQL_ROOT_PASSWORD: gearnest_root
+      MYSQL_DATABASE: kembara_db
+      MYSQL_ROOT_PASSWORD: kembara_root
     ports:
       - "127.0.0.1:3307:3306"   # bind localhost only (not 0.0.0.0); 3307 avoids a local MySQL on 3306
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pgearnest_root"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pkembara_root"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -43,9 +43,9 @@ services:
       DB_CONNECTION: mysql
       DB_HOST: mysql
       DB_PORT: "3306"
-      DB_DATABASE: gearnest_db
+      DB_DATABASE: kembara_db
       DB_USERNAME: root
-      DB_PASSWORD: gearnest_root
+      DB_PASSWORD: kembara_root
       CACHE_STORE: redis
       SESSION_DRIVER: redis
       REDIS_CLIENT: predis

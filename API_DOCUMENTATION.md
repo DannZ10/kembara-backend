@@ -82,7 +82,7 @@ Public. Creates a **customer** account (role is server-assigned — a client can
 Public.
 
 ```json
-{ "email": "customer@gearnest.com", "password": "customer123" }
+{ "email": "customer@kembara.com", "password": "customer123" }
 ```
 - **200** → `data: { token, user, role }`; **401** on bad credentials.
 
@@ -236,5 +236,5 @@ Every meaningful change is recorded for the audit trail (`GET /admin/activity-lo
 
 ## Demo credentials
 
-- **Admin:** `admin@gearnest.com` / `admin123`
-- **Customer:** `customer@gearnest.com` / `customer123`
+- **Admin:** `admin@kembara.com` / `admin123`
+- **Customer:** `customer@kembara.com` / `customer123`
