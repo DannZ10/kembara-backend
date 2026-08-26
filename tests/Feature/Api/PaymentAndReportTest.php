@@ -21,6 +21,16 @@ class PaymentAndReportTest extends TestCase
         $this->seed();
     }
 
+    /**
+     * Midtrans signature: SHA512(order_id + status_code + gross_amount + serverKey).
+     * The test suite runs with the SB-Mid-server-TESTKEY placeholder, which the
+     * webhook handler now verifies against (fail closed) just like a real key.
+     */
+    private function midtransSignature(string $orderId, string $statusCode, string $grossAmount): string
+    {
+        return hash('sha512', $orderId.$statusCode.$grossAmount.'SB-Mid-server-TESTKEY');
+    }
+
     public function test_can_create_payment_snap_url_for_booking(): void
     {
         $customer = User::where('role', UserRole::CUSTOMER)->first();
@@ -79,6 +89,7 @@ class PaymentAndReportTest extends TestCase
             'gross_amount' => (string) round($gear->price_per_day),
             'transaction_status' => 'settlement',
             'payment_type' => 'bank_transfer',
+            'signature_key' => $this->midtransSignature($orderId, '200', (string) round($gear->price_per_day)),
         ]);
 
         $webhookRes->assertStatus(200)
@@ -122,6 +133,7 @@ class PaymentAndReportTest extends TestCase
             'status_code' => '202',
             'gross_amount' => (string) round($gear->price_per_day * 2),
             'transaction_status' => 'expire',
+            'signature_key' => $this->midtransSignature($orderId, '202', (string) round($gear->price_per_day * 2)),
         ]);
 
         $webhookRes->assertStatus(200)
@@ -129,6 +141,128 @@ class PaymentAndReportTest extends TestCase
 
         // Stock restored!
         $this->assertEquals($initialStock, $gear->fresh()->stock_available);
+    }
+
+    public function test_webhook_without_signature_is_rejected(): void
+    {
+        $customer = User::where('role', UserRole::CUSTOMER)->first();
+        $gear = Gear::first();
+
+        Sanctum::actingAs($customer);
+        $bookingRes = $this->postJson('/api/bookings', [
+            'start_date' => now()->addDay()->format('Y-m-d'),
+            'end_date' => now()->addDays(2)->format('Y-m-d'),
+            'delivery_type' => 'pickup',
+            'identity_type_1' => 'KTP',
+            'identity_type_2' => 'SIM',
+            'identity_agreed' => true,
+            'items' => [
+                ['gear_id' => $gear->id, 'quantity' => 1],
+            ],
+        ]);
+
+        $payRes = $this->postJson("/api/bookings/{$bookingRes->json('data.id')}/payment");
+        $orderId = $payRes->json('data.external_id');
+
+        // Unsigned forgery attempt — must be refused even with the placeholder key.
+        $webhookRes = $this->postJson('/api/payments/webhook', [
+            'order_id' => $orderId,
+            'status_code' => '200',
+            'gross_amount' => (string) round($gear->price_per_day),
+            'transaction_status' => 'settlement',
+            'payment_type' => 'bank_transfer',
+        ]);
+
+        $webhookRes->assertStatus(400);
+        $this->assertDatabaseHas('payments', ['external_id' => $orderId, 'status' => PaymentStatus::PENDING->value]);
+    }
+
+    public function test_webhook_with_tampered_amount_is_rejected(): void
+    {
+        $customer = User::where('role', UserRole::CUSTOMER)->first();
+        $gear = Gear::first();
+
+        Sanctum::actingAs($customer);
+        $bookingRes = $this->postJson('/api/bookings', [
+            'start_date' => now()->addDay()->format('Y-m-d'),
+            'end_date' => now()->addDays(2)->format('Y-m-d'),
+            'delivery_type' => 'pickup',
+            'identity_type_1' => 'KTP',
+            'identity_type_2' => 'SIM',
+            'identity_agreed' => true,
+            'items' => [
+                ['gear_id' => $gear->id, 'quantity' => 1],
+            ],
+        ]);
+
+        $payRes = $this->postJson("/api/bookings/{$bookingRes->json('data.id')}/payment");
+        $orderId = $payRes->json('data.external_id');
+        $realAmount = (string) round($gear->price_per_day);
+        $tamperedAmount = '1';
+
+        $webhookRes = $this->postJson('/api/payments/webhook', [
+            'order_id' => $orderId,
+            'status_code' => '200',
+            'gross_amount' => $tamperedAmount,
+            'transaction_status' => 'settlement',
+            'payment_type' => 'bank_transfer',
+            // Signature is valid for the TAMPERED amount, but the amount does
+            // not match what was recorded — must still be rejected.
+            'signature_key' => $this->midtransSignature($orderId, '200', $tamperedAmount),
+        ]);
+
+        $webhookRes->assertStatus(400);
+        $this->assertDatabaseHas('payments', ['external_id' => $orderId, 'status' => PaymentStatus::PENDING->value]);
+        $this->assertNotEquals($realAmount, $tamperedAmount);
+    }
+
+    public function test_webhook_duplicate_settlement_is_idempotent_and_never_downgrades(): void
+    {
+        $customer = User::where('role', UserRole::CUSTOMER)->first();
+        $gear = Gear::first();
+
+        Sanctum::actingAs($customer);
+        $bookingRes = $this->postJson('/api/bookings', [
+            'start_date' => now()->addDay()->format('Y-m-d'),
+            'end_date' => now()->addDays(2)->format('Y-m-d'),
+            'delivery_type' => 'pickup',
+            'identity_type_1' => 'KTP',
+            'identity_type_2' => 'SIM',
+            'identity_agreed' => true,
+            'items' => [
+                ['gear_id' => $gear->id, 'quantity' => 1],
+            ],
+        ]);
+
+        $bookingId = $bookingRes->json('data.id');
+        $payRes = $this->postJson("/api/bookings/{$bookingId}/payment");
+        $orderId = $payRes->json('data.external_id');
+        $amount = (string) round($gear->price_per_day);
+
+        $signed = fn (string $status) => [
+            'order_id' => $orderId,
+            'status_code' => '200',
+            'gross_amount' => $amount,
+            'transaction_status' => $status,
+            'signature_key' => $this->midtransSignature($orderId, '200', $amount),
+        ];
+
+        $this->postJson('/api/payments/webhook', $signed('settlement'))->assertStatus(200);
+
+        // Duplicate settlement: no error, no double side-effects.
+        $this->postJson('/api/payments/webhook', $signed('settlement'))
+            ->assertStatus(200)
+            ->assertJsonPath('data.status', 'paid');
+
+        // Late expire AFTER payment: must NOT downgrade booking or refund stock.
+        $lateExpire = $signed('expire');
+        $lateExpire['status_code'] = '202';
+        $lateExpire['signature_key'] = $this->midtransSignature($orderId, '202', $amount);
+        $this->postJson('/api/payments/webhook', $lateExpire)
+            ->assertStatus(200)
+            ->assertJsonPath('data.status', 'paid');
+
+        $this->assertDatabaseHas('bookings', ['id' => $bookingId, 'status' => BookingStatus::CONFIRMED->value]);
     }
 
     public function test_admin_can_view_reports(): void

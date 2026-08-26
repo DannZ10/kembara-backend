@@ -83,7 +83,8 @@ class PaymentService
 
     /**
      * Real Midtrans credentials configured? The shipped placeholder means
-     * "offline mode" for local dev and the test suite.
+     * "offline mode" for local dev and the test suite. NOTE: this only gates
+     * Snap URL creation — webhook signature verification never skips (fail closed).
      */
     private function hasCredentials(): bool
     {
@@ -138,36 +139,69 @@ class PaymentService
             throw new \Exception('Invalid notification payload: Missing order_id');
         }
 
-        // With real credentials the SHA512 signature is mandatory: a missing
-        // signature must be rejected, otherwise anyone could POST this webhook
-        // and mark a booking as paid.
-        if ($this->hasCredentials()) {
-            if (! $signatureKey) {
-                throw new \Exception('Missing Midtrans notification signature');
-            }
+        // FAIL CLOSED: the SHA512 signature is mandatory whenever any server key
+        // is configured — including the local/test placeholder. An unsigned or
+        // badly-signed webhook must never be able to flip a booking to PAID,
+        // regardless of environment. Snap *creation* keeps its offline mode via
+        // hasCredentials(), but *verification* never skips.
+        if (! Config::$serverKey) {
+            throw new \Exception('Midtrans server key is not configured');
+        }
 
-            $expectedSignature = hash('sha512', $orderId.$statusCode.$grossAmount.Config::$serverKey);
-            if (! hash_equals($expectedSignature, $signatureKey)) {
-                throw new \Exception('Invalid Midtrans notification signature');
-            }
+        if (! $signatureKey) {
+            throw new \Exception('Missing Midtrans notification signature');
+        }
+
+        $expectedSignature = hash('sha512', $orderId.$statusCode.$grossAmount.Config::$serverKey);
+        if (! hash_equals($expectedSignature, (string) $signatureKey)) {
+            throw new \Exception('Invalid Midtrans notification signature');
         }
 
         /** @var Payment $payment */
         $payment = Payment::where('external_id', $orderId)->firstOrFail();
         $booking = $payment->booking;
 
-        return DB::transaction(function () use ($payment, $booking, $transactionStatus, $payload) {
+        // Defense-in-depth: the signed gross_amount must match what we charged.
+        // A mismatch means replayed/tampered payload even with a valid signature.
+        if ($grossAmount !== null && abs((float) $grossAmount - (float) $payment->amount) >= 0.01) {
+            throw new \Exception('Notification amount does not match the recorded payment');
+        }
+
+        $isPaidEvent = in_array($transactionStatus, ['capture', 'settlement'], true);
+        $isFailEvent = in_array($transactionStatus, ['expire', 'cancel', 'deny'], true);
+
+        // Unknown status (pending/refund/partial-*) — nothing to transition.
+        if (! $isPaidEvent && ! $isFailEvent) {
+            return $payment->fresh(['booking']);
+        }
+
+        // IDEMPOTENCY: ignore duplicate and out-of-order events. A settlement
+        // that arrives twice is a no-op, and a late expire/cancel can never
+        // downgrade an already-paid rental (money was taken).
+        if ($payment->status === PaymentStatus::PAID) {
+            return $payment->fresh(['booking']);
+        }
+
+        return DB::transaction(function () use ($payment, $booking, $transactionStatus, $isPaidEvent, $payload) {
             $paymentMethod = $payload['payment_type'] ?? null;
             $payment->update(['method' => $paymentMethod]);
 
-            if (in_array($transactionStatus, ['capture', 'settlement'], true)) {
+            if ($isPaidEvent) {
                 $payment->update([
                     'status' => PaymentStatus::PAID,
                     'paid_at' => now(),
                 ]);
-                $this->bookingService->updateBookingStatus($booking, BookingStatus::CONFIRMED);
-                ActivityLog::record($booking->id, 'payment.paid', 'Pembayaran diterima via Midtrans ('.($paymentMethod ?? 'online').').');
-            } elseif (in_array($transactionStatus, ['expire', 'cancel', 'deny'], true)) {
+
+                // Only PENDING bookings are confirmed here. If the booking was
+                // already CANCELLED (stock restored), auto-confirming could
+                // oversell — log it for manual reconciliation instead.
+                if ($booking->status === BookingStatus::PENDING) {
+                    $this->bookingService->updateBookingStatus($booking, BookingStatus::CONFIRMED);
+                    ActivityLog::record($booking->id, 'payment.paid', 'Pembayaran diterima via Midtrans ('.($paymentMethod ?? 'online').').');
+                } else {
+                    ActivityLog::record($booking->id, 'payment.paid.late', 'Dana diterima untuk booking berstatus '.$booking->status->value.' — perlu rekonsiliasi manual.');
+                }
+            } else {
                 $payment->update(['status' => PaymentStatus::EXPIRED]);
                 $this->bookingService->updateBookingStatus($booking, BookingStatus::CANCELLED);
                 ActivityLog::record($booking->id, 'payment.failed', 'Pembayaran gagal/kadaluarsa ('.$transactionStatus.').');

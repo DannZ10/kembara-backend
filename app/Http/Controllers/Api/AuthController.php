@@ -11,8 +11,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
@@ -106,8 +108,10 @@ class AuthController extends Controller
     }
 
     /**
-     * Google OAuth callback: find-or-create the user, mint a token, then bounce
-     * back to the SPA with the token so it can finish logging in.
+     * Google OAuth callback: find-or-create the user, mint a token, then hand
+     * the SPA a short-lived ONE-TIME exchange code (never the raw bearer token,
+     * which would leak into browser history, server logs, and Referer headers).
+     * The SPA POSTs the code to /api/auth/google/exchange to get the token.
      */
     public function googleCallback(): RedirectResponse
     {
@@ -120,6 +124,13 @@ class AuthController extends Controller
         $email = $googleUser->getEmail();
         if (! $email) {
             return redirect($this->frontendCallbackUrl(['error' => 'no_email']));
+        }
+
+        // Only link accounts on VERIFIED Google emails — an unverified address
+        // must never be able to claim an existing local account.
+        $emailVerified = $googleUser->user['email_verified'] ?? false;
+        if (! $emailVerified) {
+            return redirect($this->frontendCallbackUrl(['error' => 'email_not_verified']));
         }
 
         $user = User::where('email', $email)->first();
@@ -142,7 +153,52 @@ class AuthController extends Controller
 
         $token = $user->createToken('google_oauth')->plainTextToken;
 
-        return redirect($this->frontendCallbackUrl(['token' => $token]));
+        // Single-use code in cache, 5-minute TTL, consumed exactly once.
+        $code = Str::random(48);
+        Cache::put('oauth_exchange:'.$code, $token, now()->addMinutes(5));
+
+        return redirect($this->frontendCallbackUrl(['code' => $code]));
+    }
+
+    /**
+     * Exchange a one-time OAuth code for the Sanctum token. The code is pulled
+     * from cache atomically, so replaying it fails.
+     */
+    public function googleExchange(Request $request): JsonResponse
+    {
+        $request->validate(['code' => ['required', 'string', 'size:48']]);
+
+        /** @var string|null $token */
+        $token = Cache::pull('oauth_exchange:'.$request->input('code'));
+
+        if (! $token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode pertukaran tidak valid atau sudah digunakan.',
+            ], 422);
+        }
+
+        $accessToken = PersonalAccessToken::findToken($token);
+
+        if (! $accessToken || ! $accessToken->tokenable) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sesi tidak valid. Silakan login lagi.',
+            ], 422);
+        }
+
+        /** @var User $user */
+        $user = $accessToken->tokenable;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Login Google berhasil',
+            'data' => [
+                'token' => $token,
+                'user' => $user,
+                'role' => $user->role,
+            ],
+        ]);
     }
 
     private function frontendCallbackUrl(array $params): string

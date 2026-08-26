@@ -17,6 +17,9 @@ class ActivityController extends Controller
         $query = ActivityLog::with(['actor:id,name,email', 'booking:id,booking_code'])
             ->latest('created_at');
 
+        if ($request->filled('booking_id')) {
+            $query->where('booking_id', $request->input('booking_id'));
+        }
         if ($request->filled('action')) {
             $query->where('action', $request->input('action'));
         }

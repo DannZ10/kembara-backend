@@ -31,6 +31,7 @@ Route::get('/', function () {
             'auth' => [
                 'POST   /api/register',
                 'POST   /api/login',
+                'POST   /api/auth/google/exchange  (OAuth one-time code → token)',
                 'POST   /api/logout            (auth)',
                 'GET    /api/profile           (auth)',
             ],
@@ -85,6 +86,8 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:au
 // Google OAuth (browser redirects, not XHR — hence GET + full-page redirect).
 Route::get('/auth/google/redirect', [AuthController::class, 'googleRedirect'])->middleware('throttle:google');
 Route::get('/auth/google/callback', [AuthController::class, 'googleCallback'])->middleware('throttle:google');
+// SPA exchanges the one-time OAuth code for the Sanctum token (never in URL).
+Route::post('/auth/google/exchange', [AuthController::class, 'googleExchange'])->middleware('throttle:auth');
 
 Route::get('/gears', [GearController::class, 'index']);
 Route::get('/gears/{id}', [GearController::class, 'show'])->whereNumber('id');
