@@ -8,6 +8,9 @@ RUN apt-get update \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Make PaaS-injected env vars visible to Laravel's env() (reads $_ENV/$_SERVER).
+COPY docker/php.ini /usr/local/etc/php/conf.d/zz-app.ini
+
 WORKDIR /app
 
 # Install PHP deps first (better layer caching). Skip scripts: app not copied yet.

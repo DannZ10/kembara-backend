@@ -2,11 +2,15 @@
 set -e
 cd /app
 
-[ -f .env ] || cp .env.example .env
-
-# Generate an app key only if neither the env nor .env already provides one.
-if [ -z "${APP_KEY}" ] && ! grep -q '^APP_KEY=base64' .env; then
-  php artisan key:generate --force
+# A bundled .env (sqlite defaults from .env.example) shadows the real
+# environment under Laravel's env(). When the platform injects config
+# (APP_KEY present), drop it so the real env is authoritative; otherwise fall
+# back to .env.example for local runs and generate a key.
+if [ -n "${APP_KEY}" ]; then
+  rm -f .env
+else
+  [ -f .env ] || cp .env.example .env
+  grep -q '^APP_KEY=base64' .env || php artisan key:generate --force
 fi
 
 echo "Waiting for MySQL at ${DB_HOST}:${DB_PORT:-3306}..."
