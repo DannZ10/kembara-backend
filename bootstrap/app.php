@@ -20,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Behind Render/PaaS TLS-terminating proxies: trust forwarded headers so
+        // the scheme resolves to https (correct absolute URLs + OpenAPI server URL).
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'is.admin' => \App\Http\Middleware\IsAdmin::class,
         ]);
