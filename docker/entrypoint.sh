@@ -12,7 +12,8 @@ fi
 echo "Waiting for MySQL at ${DB_HOST}:${DB_PORT:-3306}..."
 until php -r '
   try {
-    new PDO("mysql:host=".getenv("DB_HOST").";port=".(getenv("DB_PORT") ?: 3306), getenv("DB_USERNAME"), getenv("DB_PASSWORD"));
+    $o = getenv("DB_SSL") ? [PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false] : [];
+    new PDO("mysql:host=".getenv("DB_HOST").";port=".(getenv("DB_PORT") ?: 3306), getenv("DB_USERNAME"), getenv("DB_PASSWORD"), $o);
   } catch (Throwable $e) { exit(1); }
 '; do
   sleep 2
@@ -25,7 +26,8 @@ php artisan migrate --force
 # while a fresh volume still gets the demo/seed data.
 USERS=$(php -r '
   try {
-    $p = new PDO("mysql:host=".getenv("DB_HOST").";port=".(getenv("DB_PORT") ?: 3306).";dbname=".getenv("DB_DATABASE"), getenv("DB_USERNAME"), getenv("DB_PASSWORD"));
+    $o = getenv("DB_SSL") ? [PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false] : [];
+    $p = new PDO("mysql:host=".getenv("DB_HOST").";port=".(getenv("DB_PORT") ?: 3306).";dbname=".getenv("DB_DATABASE"), getenv("DB_USERNAME"), getenv("DB_PASSWORD"), $o);
     echo (int) $p->query("SELECT COUNT(*) FROM users")->fetchColumn();
   } catch (Throwable $e) { echo 0; }
 ')

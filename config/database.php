@@ -61,7 +61,10 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+                // Managed MySQL (Aiven/PlanetScale) requires SSL. Set DB_SSL=true to
+                // encrypt without shipping a CA cert (skips server-cert verification).
+                Mysql::ATTR_SSL_VERIFY_SERVER_CERT => env('DB_SSL') && ! env('MYSQL_ATTR_SSL_CA') ? false : null,
+            ], fn ($v) => $v !== null) : [],
         ],
 
         'mariadb' => [
