@@ -7,9 +7,11 @@ use App\Enums\PaymentStatus;
 use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Payment;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Midtrans\Config;
 use Midtrans\Snap;
+use Midtrans\Transaction;
 
 class PaymentService
 {
@@ -167,24 +169,26 @@ class PaymentService
             throw new \Exception('Notification amount does not match the recorded payment');
         }
 
+        return $this->applyTransition($payment, $booking, $transactionStatus, $payload['payment_type'] ?? null);
+    }
+
+    /**
+     * Apply a Midtrans transaction_status to a payment + its booking. Shared by
+     * the webhook and the active gateway sync. Idempotent: a paid payment never
+     * downgrades, and duplicate paid events are no-ops.
+     */
+    private function applyTransition(Payment $payment, Booking $booking, ?string $transactionStatus, ?string $paymentType): Payment
+    {
         $isPaidEvent = in_array($transactionStatus, ['capture', 'settlement'], true);
         $isFailEvent = in_array($transactionStatus, ['expire', 'cancel', 'deny'], true);
 
-        // Unknown status (pending/refund/partial-*) — nothing to transition.
-        if (! $isPaidEvent && ! $isFailEvent) {
+        // Unknown status (pending/refund/partial-*) or already paid — nothing to do.
+        if ((! $isPaidEvent && ! $isFailEvent) || $payment->status === PaymentStatus::PAID) {
             return $payment->fresh(['booking']);
         }
 
-        // IDEMPOTENCY: ignore duplicate and out-of-order events. A settlement
-        // that arrives twice is a no-op, and a late expire/cancel can never
-        // downgrade an already-paid rental (money was taken).
-        if ($payment->status === PaymentStatus::PAID) {
-            return $payment->fresh(['booking']);
-        }
-
-        return DB::transaction(function () use ($payment, $booking, $transactionStatus, $isPaidEvent, $payload) {
-            $paymentMethod = $payload['payment_type'] ?? null;
-            $payment->update(['method' => $paymentMethod]);
+        return DB::transaction(function () use ($payment, $booking, $transactionStatus, $isPaidEvent, $paymentType) {
+            $payment->update(['method' => $paymentType]);
 
             if ($isPaidEvent) {
                 $payment->update([
@@ -197,7 +201,7 @@ class PaymentService
                 // oversell — log it for manual reconciliation instead.
                 if ($booking->status === BookingStatus::PENDING) {
                     $this->bookingService->updateBookingStatus($booking, BookingStatus::CONFIRMED);
-                    ActivityLog::record($booking->id, 'payment.paid', 'Pembayaran diterima via Midtrans ('.($paymentMethod ?? 'online').').');
+                    ActivityLog::record($booking->id, 'payment.paid', 'Pembayaran diterima via Midtrans ('.($paymentType ?? 'online').').');
                 } else {
                     ActivityLog::record($booking->id, 'payment.paid.late', 'Dana diterima untuk booking berstatus '.$booking->status->value.' — perlu rekonsiliasi manual.');
                 }
@@ -209,5 +213,62 @@ class PaymentService
 
             return $payment->fresh(['booking']);
         });
+    }
+
+    /**
+     * Pull the real status from Midtrans for a still-pending online payment and
+     * apply it. Makes booking status resilient to dropped/late webhooks (e.g.
+     * Render cold starts) — the status syncs when the customer or admin views
+     * their bookings, no manual confirmation needed.
+     */
+    public function syncFromGateway(Payment $payment): Payment
+    {
+        if ($payment->status !== PaymentStatus::PENDING
+            || $payment->gateway !== 'midtrans'
+            || ! $payment->external_id
+            || ! $this->hasCredentials()) {
+            return $payment;
+        }
+
+        try {
+            $status = (array) Transaction::status($payment->external_id);
+        } catch (\Throwable $e) {
+            return $payment; // not found yet / transient — leave pending
+        }
+
+        $transactionStatus = $status['transaction_status'] ?? null;
+        if (! $transactionStatus) {
+            return $payment;
+        }
+
+        return $this->applyTransition(
+            $payment,
+            $payment->booking,
+            $transactionStatus,
+            $status['payment_type'] ?? null
+        );
+    }
+
+    /**
+     * Reconcile still-pending Midtrans payments (optionally scoped to one user)
+     * against the gateway before listing bookings, so both admin and customer
+     * riwayat reflect the real payment status without waiting for a webhook.
+     * Bounded to recent attempts to keep the sweep cheap.
+     */
+    public function syncPendingBookings(?User $user = null): void
+    {
+        if (! $this->hasCredentials()) {
+            return;
+        }
+
+        Payment::query()
+            ->where('status', PaymentStatus::PENDING)
+            ->where('gateway', 'midtrans')
+            ->whereNotNull('external_id')
+            ->where('created_at', '>=', now()->subDays(3))
+            ->when($user, fn ($q) => $q->whereHas('booking', fn ($b) => $b->where('user_id', $user->id)))
+            ->with('booking')
+            ->get()
+            ->each(fn (Payment $p) => $this->syncFromGateway($p));
     }
 }

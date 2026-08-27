@@ -67,6 +67,13 @@ class PaymentController extends Controller
             ->with('payment')
             ->firstOrFail();
 
+        // Pull the live status from Midtrans on view, so returning from Snap
+        // reflects "paid" without waiting for the webhook.
+        if ($booking->payment) {
+            $this->paymentService->syncFromGateway($booking->payment);
+            $booking->load('payment');
+        }
+
         return response()->json([
             'success' => true,
             'data' => $booking->payment,

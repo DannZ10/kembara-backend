@@ -7,13 +7,15 @@ use App\Http\Requests\Booking\StoreBookingRequest;
 use App\Http\Requests\Booking\UpdateBookingStatusRequest;
 use App\Models\Booking;
 use App\Services\BookingService;
+use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
     public function __construct(
-        protected BookingService $bookingService
+        protected BookingService $bookingService,
+        protected PaymentService $paymentService
     ) {}
 
     public function store(StoreBookingRequest $request): JsonResponse
@@ -36,6 +38,10 @@ class BookingController extends Controller
 
     public function myBookings(Request $request): JsonResponse
     {
+        // Sync any pending online payments from Midtrans first, so the list shows
+        // "paid/confirmed" automatically even if the webhook was dropped.
+        $this->paymentService->syncPendingBookings($request->user());
+
         $perPage = (int) $request->input('limit', 10);
         $bookings = $this->bookingService->getUserBookings($request->user(), $request->all(), $perPage);
 
@@ -53,6 +59,7 @@ class BookingController extends Controller
 
     public function show(Request $request, string $id): JsonResponse
     {
+        $this->paymentService->syncPendingBookings($request->user());
         $booking = $this->bookingService->getUserBookingById($request->user(), $id);
 
         return response()->json([
@@ -63,6 +70,10 @@ class BookingController extends Controller
 
     public function indexAdmin(Request $request): JsonResponse
     {
+        // Reconcile pending online payments from Midtrans so the admin list is
+        // up to date without waiting for the webhook or a manual confirm.
+        $this->paymentService->syncPendingBookings();
+
         $perPage = (int) $request->input('limit', 10);
         $bookings = $this->bookingService->getAllBookingsAdmin($request->all(), $perPage);
 
