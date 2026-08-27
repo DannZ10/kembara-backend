@@ -45,16 +45,16 @@ return [
         /*
          * API version.
          */
-        'version' => env('API_VERSION', '0.0.1'),
+        'version' => env('API_VERSION', '1.0.0'),
 
         /*
          * Description rendered on the home page of the API documentation (`/docs/api`).
          */
-        'description' => '',
+        'description' => 'REST API Kembara.id — sistem rental & booking perlengkapan outdoor. Autentikasi: Bearer token (Laravel Sanctum). Envelope respons: { success, message, data, meta }.',
     ],
 
     'ui' => [
-        'title' => null,
+        'title' => 'Kembara.id API',
     ],
 
     'renderer' => 'elements',
@@ -142,7 +142,7 @@ return [
 
     'middleware' => [
         'web',
-        RestrictedDocsAccess::class,
+        // Docs are public (portfolio API). Re-add RestrictedDocsAccess::class here to gate them.
     ],
 
     'extensions' => [],
@@ -169,6 +169,5 @@ return [
      *     ],
      * ],
      */
-    // 'security_strategy' => \Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy::class,
-    'security_strategy' => null,
+    'security_strategy' => \Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy::class,
 ];
