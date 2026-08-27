@@ -35,4 +35,5 @@ if [ "${USERS}" = "0" ]; then
 fi
 
 php artisan config:clear
-exec php artisan serve --host=0.0.0.0 --port=8000
+# Railway (and most PaaS) inject the port to bind via $PORT; fall back to 8000 locally.
+exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}"
