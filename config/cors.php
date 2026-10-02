@@ -21,6 +21,8 @@ return [
 
     'allowed_origins' => [
         env('FRONTEND_URL', 'http://localhost:3000'),
+        // The staging site the portfolio links to; kembara-frontend.vercel.app only redirects here.
+        'https://stg-kembara.vercel.app',
         'http://localhost:3000',
         'http://127.0.0.1:3000',
     ],
