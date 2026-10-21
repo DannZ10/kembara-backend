@@ -40,6 +40,13 @@ if [ "${USERS}" = "0" ]; then
   php artisan db:seed --force
 fi
 
+# Provision the admin account when ADMIN_EMAIL / ADMIN_PASSWORD are set.
+# Idempotent (never overwrites an existing password) and non-fatal, so a
+# provisioning hiccup can't stop the API from booting.
+if [ -n "${ADMIN_EMAIL}" ] && [ -n "${ADMIN_PASSWORD}" ]; then
+  php artisan kembara:ensure-admin || echo "WARN: kembara:ensure-admin failed"
+fi
+
 php artisan config:clear
 # Railway (and most PaaS) inject the port to bind via $PORT; fall back to 8000 locally.
 exec php artisan serve --host=0.0.0.0 --port="${PORT:-8000}"
